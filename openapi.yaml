@@ -1,0 +1,408 @@
+openapi: 3.0.3
+
+info:
+  title: CronLens API
+  version: "1.0"
+  description: |
+    Backend-agnostic contract for the CronLens schedule visualiser.
+
+    Any application (django-celery-beat, APScheduler, cron, custom schedulers)
+    can implement these endpoints. CronLens knows nothing about how schedules are
+    stored or expressed — it only renders what the API returns.
+
+    **Design principles**
+
+    | Concern | Owner |
+    |---|---|
+    | Schedule expansion (cron → fire times) | Backend |
+    | Timezone conversion | Frontend (UTC/local toggle) |
+    | Human-readable schedule description | Backend |
+    | Which attributes are filterable | Backend |
+    | Group definitions | Shared (backend persists, frontend caches) |
+
+servers:
+  - url: /api
+    description: Same-origin (production default)
+  - url: http://localhost:8000/api
+    description: Django dev server
+
+tags:
+  - name: Events
+    description: Scheduled event listing
+  - name: Groups
+    description: Custom display group management
+
+paths:
+
+  /schedule/events/:
+    get:
+      tags: [Events]
+      summary: List all scheduled events
+      description: |
+        Returns every scheduled event with its pre-computed fire times and metadata.
+
+        The backend is responsible for expanding native schedule formats
+        (crontab, interval, clocked) into `fires_utc` minute-of-day integers.
+        The frontend has no cron parser — it only renders what this endpoint returns.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventsResponse"
+              example:
+                events:
+                  - id: "1947489"
+                    name: Analyze stock images
+                    kind: analyze_images
+                    enabled: true
+                    recurrence: recurring
+                    fires_utc: [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
+                    fires_on_days: null
+                    last_run_at: "2026-05-05T14:00:00Z"
+                    total_run_count: 1200
+                    schedule_display: every 5 minutes
+                    attributes: []
+                  - id: "1736228"
+                    name: Analyze logos
+                    kind: analyze_images
+                    enabled: true
+                    recurrence: recurring
+                    fires_utc: [0, 240, 480, 720, 960, 1200]
+                    fires_on_days: null
+                    last_run_at: "2026-05-05T08:00:00Z"
+                    total_run_count: 200
+                    schedule_display: every 4 hours
+                    attributes:
+                      - key: logo
+                        value: "1"
+                        filterable: true
+                  - id: "268349"
+                    name: Increase quality of low res images
+                    kind: increase_image_quality
+                    enabled: true
+                    recurrence: one_off
+                    fires_utc: []
+                    fires_on_days: null
+                    last_run_at: "2025-11-03T09:00:00Z"
+                    total_run_count: 1
+                    schedule_display: "once — ran 2025-11-03 09:00"
+                    attributes:
+                      - key: res_min_dpi
+                        value: "100"
+                        filterable: false
+                      - key: res_max_dpi
+                        value: "200"
+                        filterable: false
+                meta:
+                  source: django-celery-beat
+                  source_url: http://localhost:8000/admin/django_celery_beat/
+                  generated_at: "2026-05-05T14:32:00Z"
+                  timezone: Europe/Amsterdam
+
+  /schedule/groups/:
+    get:
+      tags: [Groups]
+      summary: List all groups
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupsResponse"
+              example:
+                groups:
+                  - id: "1"
+                    name: Images
+                    color: "#378ADD"
+                    kinds: [analyze_images, increase_image_quality, mark_images_as_logo]
+                    description: All tasks related to image processing
+
+    post:
+      tags: [Groups]
+      summary: Create a group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupInput"
+            example:
+              name: Text
+              color: "#378ADD"
+              kinds: [analyze_text, improve_spelling]
+              description: All cronjobs related to text processing
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleGroup"
+
+  /schedule/groups/{id}/:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Group ID as returned by the list or create endpoints
+
+    put:
+      tags: [Groups]
+      summary: Update a group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleGroup"
+        "404":
+          description: Group not found
+
+    delete:
+      tags: [Groups]
+      summary: Delete a group
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Group not found
+
+components:
+  schemas:
+
+    ScheduledEvent:
+      type: object
+      required:
+        - id
+        - name
+        - kind
+        - enabled
+        - recurrence
+        - fires_utc
+        - fires_on_days
+        - last_run_at
+        - total_run_count
+        - schedule_display
+        - attributes
+      properties:
+        id:
+          type: string
+          description: Opaque unique identifier. May be a number serialised as a string.
+          example: "1947489"
+        name:
+          type: string
+          description: Human-readable display name shown in the UI.
+          example: Analyze stock images
+        kind:
+          type: string
+          description: |
+            Logical category used for group matching.
+            For django-celery-beat this is the task function name (e.g. `analyze_images`).
+            For other backends it can be any stable string.
+          example: analyze_images
+        enabled:
+          type: boolean
+          description: Whether the event is currently active.
+        recurrence:
+          type: string
+          enum: [recurring, one_off, clocked]
+          description: |
+            - `recurring` — fires on a repeating schedule (cron, interval, solar…)
+            - `one_off` — ran once and is finished; plotted only at `last_run_at`
+            - `clocked` — scheduled for a single specific datetime
+        fires_utc:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+            maximum: 1439
+          description: |
+            Sorted, deduplicated **minute-of-day** values (0–1439) representing every
+            fire time within a 24-hour UTC window.
+
+            Empty for `one_off` and `clocked` events.
+
+            **Computing this value (crontab example):**
+            ```python
+            from itertools import product
+
+            def crontab_fires_utc(crontab) -> list[int]:
+                def expand(field, max_val):
+                    if field == '*': return list(range(max_val))
+                    if field.startswith('*/'): return list(range(0, max_val, int(field[2:])))
+                    if ',' in field: return [int(x) for x in field.split(',')]
+                    if '-' in field:
+                        a, b = field.split('-'); return list(range(int(a), int(b)+1))
+                    return [int(field)]
+                hours = expand(crontab.hour, 24)
+                mins  = expand(crontab.minute, 60)
+                return sorted(set(h * 60 + m for h, m in product(hours, mins)))
+            ```
+          example: [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
+        fires_on_days:
+          type: array
+          nullable: true
+          items:
+            type: integer
+            minimum: 0
+            maximum: 6
+          description: |
+            Which days-of-week this event fires on. 0 = Sunday, 6 = Saturday.
+
+            `null` means every day. Always `null` when `fires_utc` is empty.
+          example: null
+        last_run_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO 8601 UTC timestamp of the last execution. `null` if never run.
+          example: "2026-05-05T14:00:00Z"
+        total_run_count:
+          type: integer
+          minimum: 0
+          description: Cumulative number of times this event has executed.
+          example: 1200
+        schedule_display:
+          type: string
+          description: |
+            Human-readable schedule description. Backend controls the wording.
+            Shown as-is in the tooltip.
+          example: every 5 minutes
+        attributes:
+          type: array
+          items:
+            $ref: "#/components/schemas/EventAttribute"
+          description: |
+            Open list of key-value metadata. The backend decides what to expose.
+            Attributes marked `filterable: true` appear in the filter dropdown.
+
+    EventAttribute:
+      type: object
+      required: [key, value, filterable]
+      properties:
+        key:
+          type: string
+          description: Attribute name. e.g. `image_id`
+          example: image_id
+        value:
+          type: string
+          description: Always a string. The backend serialises non-strings.
+          example: "967"
+        filterable:
+          type: boolean
+          description: |
+            If `true`, this attribute appears in the filter dropdown.
+            Use for IDs and foreign keys that users may want to filter by.
+        label:
+          type: string
+          description: Optional display label. Falls back to `key` if absent.
+          example: Image ID
+
+    ResponseMeta:
+      type: object
+      description: Optional metadata about the data source. Enriches the UI but not required.
+      properties:
+        source:
+          type: string
+          description: Name of the scheduler backend.
+          example: django-celery-beat
+        source_url:
+          type: string
+          format: uri
+          description: Link to the source system's admin UI, if any.
+          example: http://localhost:8000/admin/django_celery_beat/
+        generated_at:
+          type: string
+          format: date-time
+          description: UTC timestamp of when this snapshot was produced.
+          example: "2026-05-05T14:32:00Z"
+        timezone:
+          type: string
+          description: |
+            The native timezone of the source system (e.g. `Europe/Amsterdam`).
+            Shown in the UI as context only — does not affect time display.
+            The UTC/local toggle controls that.
+          example: Europe/Amsterdam
+
+    EventsResponse:
+      type: object
+      required: [events]
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScheduledEvent"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+    ScheduleGroup:
+      type: object
+      required: [id, name, color, kinds, description]
+      properties:
+        id:
+          type: string
+          description: Server-assigned identifier.
+          example: "1"
+        name:
+          type: string
+          description: Display name shown in the group editor and filter bar.
+          example: Images
+        color:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+          description: Hex colour code used to tint timeline rows and calendar cells.
+          example: "#378ADD"
+        kinds:
+          type: array
+          items:
+            type: string
+          description: |
+            List of `kind` values that belong to this group.
+            An event is assigned to the first group whose `kinds` list contains its `kind`.
+          example: [analyze_images, increase_image_quality, mark_images_as_logo]
+        description:
+          type: string
+          description: Optional human-readable description shown in the group editor.
+          example: All tasks related to image processing
+
+    GroupInput:
+      type: object
+      required: [name, color, kinds, description]
+      description: Request body for creating or updating a group.
+      properties:
+        name:
+          type: string
+          example: Text
+        color:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+          example: "#378ADD"
+        kinds:
+          type: array
+          items:
+            type: string
+          example: [analyze_text, improve_spelling]
+        description:
+          type: string
+          example: All cronjobs related to text processing
+
+    GroupsResponse:
+      type: object
+      required: [groups]
+      properties:
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScheduleGroup"
