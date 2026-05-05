@@ -11,10 +11,13 @@ CronLens is a pure frontend app that can group, search and filter cronjobs and/o
 The API contract is backend-agnostic: any scheduler (django-celery-beat, APScheduler, cron, a custom system) can implement it.
 
 ## :camera: Sneak peek
-
 <!-- Timeline view -->
+### Timeline
+![timeline.png](public/timeline.png)
+
+### Calendar
 <!-- Calendar view -->
-<!-- Group editor -->
+![calendar.png](public/calendar.png)
 
 ## :sparkles: Features
 

@@ -23,7 +23,7 @@
 
         <!-- Very-high: one badge per group -->
         <div v-if="veryHighGroups.length" class="tier-section">
-          <div class="tier-tag">continuous</div>
+          <div class="tier-tag">Constant</div>
           <div
             v-for="g in veryHighGroups"
             :key="g.id"
@@ -108,12 +108,14 @@
 import { ref, computed } from "vue"
 import type { ScheduledEvent, ScheduleGroup } from "@/types"
 import {
-  frequencyTier,
   firesOnDay,
   toDisplayMinute,
   fmtMinute,
 } from "@/composables/useSchedule"
+import { useCronLensStore } from "@/stores/scheduleStore"
 import TaskTooltip from "./TaskTooltip.vue"
+
+const store = useCronLensStore()
 
 interface DayMeta {
   date: Date
@@ -173,7 +175,9 @@ const nonRecurring = computed(() =>
 
 // Very-high: grouped badges (same for all days)
 const veryHighGroups = computed(() => {
-  const vh = recurring.value.filter((e) => frequencyTier(e) === "very-high")
+  const vh = recurring.value.filter(
+    (e) => store.frequencyTierOf(e) === "very-high",
+  )
   const map: Record<
     string,
     {
@@ -203,14 +207,15 @@ const veryHighGroups = computed(() => {
 
 function highForDay(day: DayMeta) {
   return recurring.value.filter(
-    (e) => frequencyTier(e) === "high" && firesOnDay(e, day.dayOfWeek),
+    (e) => store.frequencyTierOf(e) === "high" && firesOnDay(e, day.dayOfWeek),
   )
 }
 
 function specificForDay(day: DayMeta) {
   return recurring.value
     .filter(
-      (e) => frequencyTier(e) === "specific" && firesOnDay(e, day.dayOfWeek),
+      (e) =>
+        store.frequencyTierOf(e) === "specific" && firesOnDay(e, day.dayOfWeek),
     )
     .map((ev) => ({
       ev,

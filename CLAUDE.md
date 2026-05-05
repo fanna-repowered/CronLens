@@ -105,8 +105,8 @@ If the parent app manages dark mode via a class, override the variables there.
 
 ### Frequency tiers
 Tasks are split into three bands based on fires-per-day (computed from crontab):
-- **very-high** ≥ 60/day — rendered as a solid colour band (e.g. `*/2` runs 720×/day)
-- **high** ≥ 4/day — individual tick marks per fire
+- **very-high** ≥ rendered as a solid colour band (e.g. `*/2` runs 720×/day)
+- **high** ≥ day — individual tick marks per fire
 - **specific** < 4/day — individual ticks, shown with fire times in calendar
 
 ### One-off tasks

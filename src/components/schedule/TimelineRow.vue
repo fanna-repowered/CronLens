@@ -36,7 +36,10 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import type { ScheduledEvent } from "@/types"
-import { frequencyTier, toDisplayMinute } from "@/composables/useSchedule"
+import { toDisplayMinute } from "@/composables/useSchedule"
+import { useCronLensStore } from "@/stores/scheduleStore"
+
+const store = useCronLensStore()
 
 const props = defineProps<{
   event: ScheduledEvent
@@ -49,7 +52,7 @@ const emit = defineEmits<{
   leave: []
 }>()
 
-const tier = computed(() => frequencyTier(props.event))
+const tier = computed(() => store.frequencyTierOf(props.event))
 const fires = computed(() =>
   props.event.fires_utc.map((m) => toDisplayMinute(m, props.useLocal)),
 )
@@ -102,6 +105,24 @@ function pct(m: number) {
   flex: 1;
   position: relative;
   overflow: hidden;
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      var(--bs-border) 0,
+      var(--bs-border) 0.5px,
+      transparent 0.5px,
+      transparent 100%
+    ),
+    repeating-linear-gradient(
+      to right,
+      var(--bs-border-faint) 0,
+      var(--bs-border-faint) 0.5px,
+      transparent 0.5px,
+      transparent 100%
+    );
+  background-size:
+    calc(100% / 4) 100%,
+    calc(100% / 24) 100%;
 }
 .fire-tick {
   position: absolute;

@@ -82,13 +82,13 @@ a,
   }
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 100rem) {
   body {
-    display: flex;
     place-items: center;
   }
 
   #app {
     display: grid;
+    min-width: 80rem;
   }
 }

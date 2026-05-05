@@ -1,7 +1,8 @@
 <template>
   <div class="cronlens-page">
     <header class="toolbar">
-      <div class="toolbar-left">
+      <!-- View row: no label, view switch left, group pills right -->
+      <div class="view-row">
         <div class="view-switch">
           <button
             :class="{ active: store.view === 'timeline' }"
@@ -16,135 +17,247 @@
             calendar
           </button>
         </div>
-        <input
-          v-model="store.searchQuery"
-          type="text"
-          class="search"
-          placeholder="search events…"
-        />
-        <template v-if="filterableKeys.length">
-          <select v-model="store.attrFilterKey" class="id-select">
-            <option :value="null">filter by attribute…</option>
-            <option v-for="k in filterableKeys" :key="k" :value="k">
-              {{ k }}
-            </option>
-          </select>
-          <input
-            v-if="store.attrFilterKey"
-            v-model="store.attrFilterVal"
-            type="text"
-            class="id-val"
-            :placeholder="`${store.attrFilterKey} value…`"
-          />
-        </template>
       </div>
 
-      <div class="toolbar-right">
-        <div class="group-pills">
-          <button
-            class="pill"
-            :class="{ active: store.activeGroupId === null }"
-            @click="store.activeGroupId = null"
-          >
-            all
-          </button>
-          <button
-            v-for="g in store.groups"
-            :key="g.id"
-            class="pill"
-            :class="{ active: store.activeGroupId === g.id }"
-            :style="
-              store.activeGroupId === g.id
-                ? { background: g.color, borderColor: g.color, color: '#fff' }
-                : { borderColor: g.color + '99', color: g.color }
-            "
-            @click="
-              store.activeGroupId = store.activeGroupId === g.id ? null : g.id
-            "
-          >
-            {{ g.name }}
-          </button>
-        </div>
-
-        <div class="tz-toggle">
-          <span class="tz-lbl">UTC</span>
-          <label class="switch">
-            <input type="checkbox" v-model="store.useLocalTime" />
-            <span class="track" />
-          </label>
-          <span class="tz-lbl">local</span>
-        </div>
-
-        <button
-          class="icon-btn"
-          title="Manage groups"
-          @click="showGroups = true"
-        >
+      <!-- Collapsible groups row -->
+      <div class="config-row">
+        <button class="config-label" @click="groupsOpen = !groupsOpen">
           <svg
-            width="14"
-            height="14"
-            viewBox="0 0 14 14"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-          >
-            <circle cx="5" cy="4.5" r="1.8" />
-            <path d="M1.5 12c0-1.93 1.57-3.5 3.5-3.5s3.5 1.57 3.5 3.5" />
-            <path d="M9.5 2.5 11 4l2-3" />
-          </svg>
-          groups
-        </button>
-
-        <button
-          class="icon-btn sq"
-          :class="{ spinning: loading }"
-          title="Refresh"
-          @click="fetchEvents"
-        >
-          <svg
-            width="13"
-            height="13"
-            viewBox="0 0 13 13"
+            class="chevron"
+            :class="{ open: groupsOpen }"
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
             fill="none"
             stroke="currentColor"
             stroke-width="1.5"
             stroke-linecap="round"
             stroke-linejoin="round"
           >
-            <path d="M11.5 6.5A5 5 0 1 1 6.5 1.5" />
-            <polyline points="9,1 12,1 12,4" />
+            <path d="M2 3.5l3 3 3-3" />
           </svg>
+          groups
         </button>
+        <div v-show="groupsOpen" class="config-content">
+          <div class="group-pills">
+            <button
+              class="pill"
+              :class="{ active: store.activeGroupIds.size === 0 }"
+              @click="store.activeGroupIds.clear()"
+            >
+              all
+            </button>
+            <button
+              v-for="g in store.groups"
+              :key="g.id"
+              class="pill"
+              :class="{ active: store.activeGroupIds.has(g.id) }"
+              :style="
+                store.activeGroupIds.has(g.id)
+                  ? { background: g.color, borderColor: g.color, color: '#fff' }
+                  : { borderColor: g.color + '99', color: g.color }
+              "
+              @click="store.toggleGroupId(g.id)"
+            >
+              {{ g.name }}
+            </button>
+          </div>
+
+          <div class="view-row-actions">
+            <button
+              class="icon-btn"
+              title="Manage groups"
+              @click="showGroups = true"
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 13 13"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M6.5 1.5v10M1.5 6.5h10" />
+              </svg>
+            </button>
+            <button
+              class="icon-btn sq"
+              :class="{ spinning: loading }"
+              title="Refresh"
+              @click="fetchEvents"
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 13 13"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M11 2.5v3h-3M2 10.5v-3h3M10.5 4.5a4.5 4.5 0 0 0-7.5-1.5M2.5 8.5a4.5 4.5 0 0 0 7.5 1.5"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Collapsible settings row -->
+      <div class="config-row">
+        <button class="config-label" @click="settingsOpen = !settingsOpen">
+          <svg
+            class="chevron"
+            :class="{ open: settingsOpen }"
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M2 3.5l3 3 3-3" />
+          </svg>
+          settings
+        </button>
+        <div v-show="settingsOpen" class="config-content layered">
+          <div class="tz-toggle">
+            <span class="tz-lbl">UTC</span>
+            <label class="switch">
+              <input type="checkbox" v-model="store.useLocalTime" />
+              <span class="track" />
+            </label>
+            <span class="tz-lbl">local</span>
+          </div>
+          <div>
+            <div class="tier-config">
+              <span class="tier-lbl">Constant ≥</span>
+              <input
+                v-model.number="store.veryHighThreshold"
+                type="number"
+                min="1"
+                max="1440"
+                class="tier-input"
+                title="Tasks with this many fires/day or more are shown as a solid band"
+              />
+              <span class="tier-lbl">/day</span>
+            </div>
+            <div class="tier-config">
+              <span class="tier-lbl">Frequent ≥</span>
+              <input
+                v-model.number="store.highThreshold"
+                type="number"
+                min="1"
+                max="1440"
+                class="tier-input"
+                title="Tasks with this many fires/day or more are shown as individual ticks"
+              />
+              <span class="tier-lbl">/day</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Collapsible filter row -->
+      <div class="config-row">
+        <button class="config-label" @click="filterOpen = !filterOpen">
+          <svg
+            class="chevron"
+            :class="{ open: filterOpen }"
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M2 3.5l3 3 3-3" />
+          </svg>
+          filter
+        </button>
+        <div v-show="filterOpen" class="config-content layered">
+          <input
+            v-model="store.searchQuery"
+            type="text"
+            class="search"
+            placeholder="search events…"
+          />
+          <div>
+            <template v-if="filterableKeys.length">
+              <select v-model="store.attrFilterKey" class="id-select">
+                <option :value="null">...</option>
+                <option v-for="k in filterableKeys" :key="k" :value="k">
+                  {{ k }}
+                </option>
+              </select>
+              <input
+                v-model="store.attrFilterVal"
+                type="text"
+                class="id-val"
+                :placeholder="`${store.attrFilterKey || 'attribute'} value…`"
+              />
+            </template>
+          </div>
+        </div>
       </div>
     </header>
 
-    <div class="stats-bar">
-      <span class="stat">
-        <strong>{{ filtered.length }}</strong> events
-        <template v-if="filtered.length !== events.length"
-          ><span class="of"> of {{ events.length }}</span></template
+    <!--    Collapsible status bar-->
+    <div class="config-row">
+      <button class="config-label" @click="infoStatusOpen = !infoStatusOpen">
+        <svg
+          class="chevron"
+          :class="{ open: infoStatusOpen }"
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
         >
-      </span>
-      <span class="sep" />
-      <span class="stat"
-        ><strong>{{ totalFires }}</strong> fires/day</span
-      >
-      <span class="sep" />I
-      <span class="stat"
-        ><strong>{{ nonRecurringCount }}</strong> one-off</span
-      >
-      <span class="sep" />
-      <span class="stat mono">{{ tzDisplay }}</span>
-      <span v-if="meta?.source" class="stat source"
-        >source: {{ meta.source }}</span
-      >
-      <span v-if="error" class="stat err"
-        >&#9888; {{ error }} — showing demo data</span
-      >
-    </div>
+          <path d="M2 3.5l3 3 3-3" />
+        </svg>
+        Info
+      </button>
+      <div v-show="infoStatusOpen" class="config-content">
+        <div class="stats-bar">
+          <span class="stat">
+            <strong>{{ filtered.length }}</strong> events
+            <template v-if="filtered.length !== events.length"
+              ><span class="of"> of {{ events.length }}</span></template
+            >
+          </span>
+          <span class="sep" />
+          <span class="stat"
+            ><strong>{{ totalFires }}</strong> fires/day</span
+          >
+          <span class="sep" />I
+          <span class="stat"
+            ><strong>{{ nonRecurringCount }}</strong> one-off</span
+          >
+          <span class="sep" />
+          <span class="stat mono">{{ tzDisplay }}</span>
+          <span v-if="meta?.source" class="stat source"
+            >source: {{ meta.source }}</span
+          >
+          <span v-if="error" class="stat err"
+            >&#9888; {{ error }} — showing demo data</span
+          >
+        </div>
 
-    <div v-if="loading" class="status-bar">loading…</div>
+        <div v-if="loading" class="status-bar">loading…</div>
+      </div>
+    </div>
 
     <TimelineView
       v-if="store.view === 'timeline'"
@@ -184,6 +297,11 @@ import type { ResponseMeta } from "@/types"
 const store = useCronLensStore()
 const { events, loading, error, filterableKeys, fetchEvents } = useSchedule()
 const showGroups = ref(false)
+const settingsOpen = ref(true)
+const groupsOpen = ref(true)
+const filterOpen = ref(true)
+const infoStatusOpen = ref(true)
+
 const meta = ref<ResponseMeta | null>(null)
 
 const filtered = computed(() => store.filteredEvents(events.value))
@@ -223,29 +341,99 @@ onMounted(async () => {
   border-radius: 10px;
   overflow: hidden;
 }
+
 .toolbar {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  border-bottom: 0.5px solid var(--bs-border);
+  background: var(--bs-surface);
+}
+
+.view-row {
+  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 10px 14px;
-  border-bottom: 0.5px solid var(--bs-border);
-  background: var(--bs-surface);
+  padding: 8px 14px;
+  border-bottom: 0.5px solid var(--bs-border-faint);
   flex-wrap: wrap;
+  gap: 8px;
 }
-.toolbar-left,
-.toolbar-right {
+
+.config-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  border-bottom: 0.5px solid var(--bs-border-faint);
+  align-items: flex-start;
+}
+
+.config-row:last-child {
+  border-bottom: none;
+}
+
+.config-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px 7px 14px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--bs-text-faint);
+  background: transparent;
+  border: none;
+  border-right: 0.5px solid var(--bs-border-faint);
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.config-label:hover {
+  color: var(--bs-text-muted);
+}
+
+.chevron {
+  flex-shrink: 0;
+  transform: rotate(-90deg);
+  transition: transform 0.15s ease;
+}
+
+.chevron.open {
+  transform: rotate(0deg);
+}
+
+.config-content {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 6px 14px;
   flex-wrap: wrap;
+
+  &.layered {
+    align-items: start;
+    flex-direction: column;
+    padding: 0.5rem 1.2rem;
+  }
 }
+
+.view-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 .view-switch {
   display: flex;
   border: 0.5px solid var(--bs-border);
   border-radius: 6px;
   overflow: hidden;
 }
+
 .view-switch button {
   border: none;
   border-radius: 0;
@@ -257,14 +445,17 @@ onMounted(async () => {
   font-family: inherit;
   transition: all 0.1s;
 }
+
 .view-switch button.active {
   background: var(--bs-bg);
   color: var(--bs-text);
   font-weight: 500;
 }
+
 .view-switch button:first-child {
   border-right: 0.5px solid var(--bs-border);
 }
+
 .search,
 .id-select,
 .id-val {
@@ -276,23 +467,28 @@ onMounted(async () => {
   color: var(--bs-text);
   font-family: inherit;
 }
+
 .search {
   width: 180px;
 }
+
 .id-val {
   width: 130px;
 }
+
 .search:focus,
 .id-select:focus,
 .id-val:focus {
   outline: none;
   border-color: var(--bs-accent);
 }
+
 .group-pills {
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
 }
+
 .pill {
   font-size: 11px;
   padding: 3px 10px;
@@ -305,22 +501,57 @@ onMounted(async () => {
   font-family: inherit;
   white-space: nowrap;
 }
+
 .pill:hover {
   border-color: var(--bs-border-strong);
   color: var(--bs-text);
 }
+
 .pill.active {
   font-weight: 500;
 }
+
+.tier-config {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tier-lbl {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--bs-text-faint);
+  white-space: nowrap;
+}
+
+.tier-input {
+  width: 5rem;
+  font-size: 11px;
+  padding: 3px 5px;
+  border: 0.5px solid var(--bs-border);
+  border-radius: 4px;
+  background: var(--bs-bg);
+  color: var(--bs-text);
+  font-family: monospace;
+  text-align: right;
+}
+
+.tier-input:focus {
+  outline: none;
+  border-color: var(--bs-accent);
+}
+
 .tz-toggle {
   display: flex;
   align-items: center;
   gap: 5px;
 }
+
 .tz-lbl {
   font-size: 11px;
   color: var(--bs-text-muted);
 }
+
 .switch {
   position: relative;
   display: inline-block;
@@ -328,11 +559,13 @@ onMounted(async () => {
   height: 18px;
   cursor: pointer;
 }
+
 .switch input {
   opacity: 0;
   width: 0;
   height: 0;
 }
+
 .track {
   position: absolute;
   inset: 0;
@@ -340,6 +573,7 @@ onMounted(async () => {
   border-radius: 9px;
   transition: background 0.2s;
 }
+
 .track::after {
   content: "";
   position: absolute;
@@ -351,12 +585,15 @@ onMounted(async () => {
   border-radius: 50%;
   transition: transform 0.2s;
 }
+
 .switch input:checked + .track {
   background: var(--bs-accent);
 }
+
 .switch input:checked + .track::after {
   transform: translateX(14px);
 }
+
 .icon-btn {
   display: inline-flex;
   align-items: center;
@@ -371,21 +608,26 @@ onMounted(async () => {
   font-family: inherit;
   transition: all 0.12s;
 }
+
 .icon-btn.sq {
   padding: 4px 7px;
 }
+
 .icon-btn:hover {
   color: var(--bs-text);
   border-color: var(--bs-border-strong);
 }
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
   }
 }
+
 .icon-btn.spinning svg {
   animation: spin 0.7s linear infinite;
 }
+
 .stats-bar {
   display: flex;
   align-items: center;
@@ -394,60 +636,41 @@ onMounted(async () => {
   gap: 0;
   flex-wrap: wrap;
 }
+
 .stat {
   font-size: 12px;
   color: var(--bs-text-muted);
   padding: 0 10px;
 }
+
 .stat strong {
   color: var(--bs-text);
 }
+
 .of {
   color: var(--bs-text-faint);
 }
+
 .sep {
   width: 0.5px;
   height: 12px;
   background: var(--bs-border);
   flex-shrink: 0;
 }
+
 .mono {
   font-family: monospace;
   font-size: 11px;
 }
+
 .source {
   font-style: italic;
 }
+
 .err {
   color: var(--bs-danger);
 }
-.legend-bar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 6px 14px;
-  border-bottom: 0.5px solid var(--bs-border-faint);
-  flex-wrap: wrap;
-}
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  color: var(--bs-text-muted);
-  cursor: pointer;
-  transition: opacity 0.12s;
-  user-select: none;
-}
-.legend-item.dimmed {
-  opacity: 0.3;
-}
-.ldot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
+
 .status-bar {
   padding: 6px 14px;
   font-size: 12px;

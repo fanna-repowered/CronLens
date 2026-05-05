@@ -1,7 +1,12 @@
 // src/stores/scheduleStore.ts
 import { defineStore } from "pinia"
 import { ref } from "vue"
-import type { ScheduleGroup, ScheduledEvent, ViewMode } from "@/types"
+import type {
+  ScheduleGroup,
+  ScheduledEvent,
+  FrequencyTier,
+  ViewMode,
+} from "@/types"
 import { getAttribute } from "@/composables/useSchedule"
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? ""
@@ -187,9 +192,29 @@ export const useCronLensStore = defineStore("schedule", () => {
   const view = ref<ViewMode>("timeline")
   const useLocalTime = ref(true)
   const searchQuery = ref("")
-  const activeGroupId = ref<string | null>(null)
-  const attrFilterKey = ref<string | null>(null) // filterable attribute key
+  const activeGroupIds = ref<Set<string>>(new Set())
+  const attrFilterKey = ref<string | null>(null)
   const attrFilterVal = ref("")
+
+  function toggleGroupId(id: string) {
+    if (activeGroupIds.value.has(id)) {
+      activeGroupIds.value.delete(id)
+    } else {
+      activeGroupIds.value.add(id)
+    }
+  }
+
+  // ── Frequency tiers ──────────────────────────────────────────────────────────
+
+  const veryHighThreshold = ref(60)
+  const highThreshold = ref(4)
+
+  function frequencyTierOf(event: ScheduledEvent): FrequencyTier {
+    const n = event.fires_utc.length
+    if (n >= veryHighThreshold.value) return "very-high"
+    if (n >= highThreshold.value) return "high"
+    return "specific"
+  }
 
   // ── Filtering ───────────────────────────────────────────────────────────────
 
@@ -206,9 +231,13 @@ export const useCronLensStore = defineStore("schedule", () => {
       )
     }
 
-    if (activeGroupId.value) {
-      const g = groups.value.find((g) => g.id === activeGroupId.value)
-      if (g) list = list.filter((e) => g.kinds.includes(e.kind))
+    if (activeGroupIds.value.size > 0) {
+      const selectedKinds = new Set(
+        groups.value
+          .filter((g) => activeGroupIds.value.has(g.id))
+          .flatMap((g) => g.kinds),
+      )
+      list = list.filter((e) => selectedKinds.has(e.kind))
     }
 
     if (attrFilterKey.value && attrFilterVal.value.trim()) {
@@ -234,11 +263,16 @@ export const useCronLensStore = defineStore("schedule", () => {
     resetToDefaults,
     groupForEvent,
     colorForEvent,
+    // frequency tiers
+    veryHighThreshold,
+    highThreshold,
+    frequencyTierOf,
     // ui state
     view,
     useLocalTime,
     searchQuery,
-    activeGroupId,
+    activeGroupIds,
+    toggleGroupId,
     attrFilterKey,
     attrFilterVal,
     filteredEvents,
