@@ -45,6 +45,8 @@ const props = defineProps<{
   event: ScheduledEvent
   color: string
   useLocal: boolean
+  displayStart: number
+  displayEnd: number
 }>()
 
 const emit = defineEmits<{
@@ -58,7 +60,9 @@ const fires = computed(() =>
 )
 
 function pct(m: number) {
-  return (m / 1440) * 100
+  return (
+    ((m - props.displayStart) / (props.displayEnd - props.displayStart)) * 100
+  )
 }
 </script>
 
@@ -122,7 +126,7 @@ function pct(m: number) {
     );
   background-size:
     calc(100% / 4) 100%,
-    calc(100% / 24) 100%;
+    calc(100% / var(--tl-grid-minor, 24)) 100%;
 }
 .fire-tick {
   position: absolute;

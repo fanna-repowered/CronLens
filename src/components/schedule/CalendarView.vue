@@ -13,6 +13,8 @@
         :key="day.iso"
         class="cal-day"
         :class="{ today: day.isToday }"
+        title="Double-click to open in timeline"
+        @dblclick="navigateToDay(day.date)"
       >
         <div class="day-header">
           <span class="day-name">{{ day.dayName }}</span>
@@ -136,6 +138,17 @@ const props = defineProps<{
 const weekOffset = ref(0)
 const hovered = ref<{ ev: ScheduledEvent; mouse: MouseEvent } | null>(null)
 const todayStr = new Date().toDateString()
+
+function navigateToDay(date: Date) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const d = new Date(date)
+  d.setHours(0, 0, 0, 0)
+  store.timelineDayOffset = Math.round(
+    (d.getTime() - today.getTime()) / 86_400_000,
+  )
+  store.view = "timeline"
+}
 
 const weekDays = computed<DayMeta[]>(() => {
   const base = new Date()
@@ -280,11 +293,15 @@ function runTime(iso: string): string {
   border-right: 0.5px solid var(--bs-border-faint);
   padding-bottom: 8px;
   min-height: 280px;
+  cursor: default;
 }
 .cal-day:last-child {
   border-right: none;
 }
 .cal-day.today {
+  background: var(--bs-surface);
+}
+.cal-day:hover {
   background: var(--bs-surface);
 }
 .day-header {

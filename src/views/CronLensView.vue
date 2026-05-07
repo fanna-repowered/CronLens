@@ -1,22 +1,16 @@
 <template>
   <div class="cronlens-page">
     <header class="toolbar">
-      <!-- View row: no label, view switch left, group pills right -->
-      <div class="view-row">
-        <div class="view-switch">
-          <button
-            :class="{ active: store.view === 'timeline' }"
-            @click="store.view = 'timeline'"
-          >
-            timeline
-          </button>
-          <button
-            :class="{ active: store.view === 'calendar' }"
-            @click="store.view = 'calendar'"
-          >
-            calendar
-          </button>
-        </div>
+      <!-- Brand + back navigation -->
+      <div class="brand-row">
+        <span class="brand-name">CronLens</span>
+        <button
+          v-if="store.view === 'timeline'"
+          class="back-btn"
+          @click="store.view = 'calendar'"
+        >
+          ← calendar
+        </button>
       </div>
 
       <!-- Collapsible groups row -->
@@ -45,7 +39,7 @@
               :class="{ active: store.activeGroupIds.size === 0 }"
               @click="store.activeGroupIds.clear()"
             >
-              all
+              All
             </button>
             <button
               v-for="g in store.groups"
@@ -160,6 +154,37 @@
               />
               <span class="tier-lbl">/day</span>
             </div>
+            <div
+              class="tier-config"
+              :class="{ 'zoom-disabled': store.view === 'calendar' }"
+            >
+              <span class="tier-lbl">Zoom</span>
+              <input
+                v-model.number="store.zoomSnapValue"
+                type="number"
+                min="1"
+                class="tier-input"
+                :disabled="store.view === 'calendar'"
+                title="Drag-select snaps to this interval on the timeline"
+              />
+              <select
+                v-model="store.zoomSnapUnit"
+                class="snap-unit"
+                :disabled="store.view === 'calendar'"
+              >
+                <option value="min">min</option>
+                <option value="hour">hour</option>
+              </select>
+              <button
+                class="reset-zoom-btn"
+                :class="{ active: store.zoomStart !== null }"
+                :disabled="store.view === 'calendar'"
+                title="Reset timeline zoom to full day"
+                @click="store.resetZoom()"
+              >
+                ↺
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -188,24 +213,27 @@
             v-model="store.searchQuery"
             type="text"
             class="search"
-            placeholder="search events…"
+            placeholder="Search events…"
           />
-          <div>
-            <template v-if="filterableKeys.length">
-              <select v-model="store.attrFilterKey" class="id-select">
-                <option :value="null">...</option>
-                <option v-for="k in filterableKeys" :key="k" :value="k">
-                  {{ k }}
-                </option>
-              </select>
-              <input
-                v-model="store.attrFilterVal"
-                type="text"
-                class="id-val"
-                :placeholder="`${store.attrFilterKey || 'attribute'} value…`"
-              />
-            </template>
-          </div>
+          <template v-if="attrValueCounts.length">
+            <select v-model="store.attrFilterKey" class="id-select">
+              <option :value="null">...</option>
+              <option
+                v-for="{ key, count } in attrValueCounts"
+                :key="key"
+                :value="key"
+              >
+                {{ key }} ({{ count }})
+              </option>
+            </select>
+            <input
+              v-if="store.attrFilterKey"
+              v-model="store.attrFilterVal"
+              type="text"
+              class="id-val"
+              :placeholder="`${store.attrFilterKey} value…`"
+            />
+          </template>
         </div>
       </div>
     </header>
@@ -295,7 +323,7 @@ import GroupEditor from "@/components/schedule/GroupEditor.vue"
 import type { ResponseMeta } from "@/types"
 
 const store = useCronLensStore()
-const { events, loading, error, filterableKeys, fetchEvents } = useSchedule()
+const { events, loading, error, fetchEvents } = useSchedule()
 const showGroups = ref(false)
 const settingsOpen = ref(true)
 const groupsOpen = ref(true)
@@ -316,6 +344,18 @@ const totalFires = computed(() =>
 const nonRecurringCount = computed(
   () => filtered.value.filter((e) => e.recurrence !== "recurring").length,
 )
+
+const attrValueCounts = computed(() => {
+  const map = new Map<string, Set<string>>()
+  for (const e of events.value) {
+    for (const a of e.attributes) {
+      if (!a.filterable) continue
+      if (!map.has(a.key)) map.set(a.key, new Set())
+      map.get(a.key)!.add(a.value)
+    }
+  }
+  return [...map.entries()].map(([key, vals]) => ({ key, count: vals.size }))
+})
 
 const tzDisplay = computed(() => {
   if (!store.useLocalTime) return "UTC"
@@ -340,6 +380,40 @@ onMounted(async () => {
   border: 0.5px solid var(--bs-border);
   border-radius: 10px;
   overflow: hidden;
+  scrollbar-gutter: stable;
+}
+
+.brand-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-bottom: 0.5px solid var(--bs-border-faint);
+}
+
+.brand-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--bs-text);
+  letter-spacing: 0.02em;
+}
+
+.back-btn {
+  font-size: 12px;
+  padding: 4px 12px;
+  border: 0.5px solid var(--bs-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--bs-text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.12s;
+}
+
+.back-btn:hover {
+  color: var(--bs-accent);
+  border-color: var(--bs-accent);
 }
 
 .toolbar {
@@ -347,17 +421,6 @@ onMounted(async () => {
   grid-template-columns: max-content 1fr;
   border-bottom: 0.5px solid var(--bs-border);
   background: var(--bs-surface);
-}
-
-.view-row {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 14px;
-  border-bottom: 0.5px solid var(--bs-border-faint);
-  flex-wrap: wrap;
-  gap: 8px;
 }
 
 .config-row {
@@ -425,35 +488,6 @@ onMounted(async () => {
   gap: 6px;
   margin-left: auto;
   flex-shrink: 0;
-}
-
-.view-switch {
-  display: flex;
-  border: 0.5px solid var(--bs-border);
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.view-switch button {
-  border: none;
-  border-radius: 0;
-  padding: 4px 12px;
-  font-size: 12px;
-  color: var(--bs-text-muted);
-  background: transparent;
-  cursor: pointer;
-  font-family: inherit;
-  transition: all 0.1s;
-}
-
-.view-switch button.active {
-  background: var(--bs-bg);
-  color: var(--bs-text);
-  font-weight: 500;
-}
-
-.view-switch button:first-child {
-  border-right: 0.5px solid var(--bs-border);
 }
 
 .search,
@@ -539,6 +573,54 @@ onMounted(async () => {
 .tier-input:focus {
   outline: none;
   border-color: var(--bs-accent);
+}
+
+.snap-unit {
+  font-size: 11px;
+  padding: 3px 4px;
+  border: 0.5px solid var(--bs-border);
+  border-radius: 4px;
+  background: var(--bs-bg);
+  color: var(--bs-text);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.snap-unit:focus {
+  outline: none;
+  border-color: var(--bs-accent);
+}
+
+.reset-zoom-btn {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.5px solid var(--bs-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--bs-text-faint);
+  cursor: pointer;
+  font-size: 14px;
+  font-family: inherit;
+  padding: 0;
+  transition: all 0.12s;
+}
+
+.reset-zoom-btn:hover {
+  color: var(--bs-text-muted);
+  border-color: var(--bs-border-strong);
+}
+
+.reset-zoom-btn.active {
+  color: var(--bs-accent);
+  border-color: var(--bs-accent);
+}
+
+.zoom-disabled {
+  opacity: 0.4;
+  pointer-events: none;
 }
 
 .tz-toggle {

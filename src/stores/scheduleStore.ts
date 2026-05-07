@@ -1,6 +1,6 @@
 // src/stores/scheduleStore.ts
 import { defineStore } from "pinia"
-import { ref } from "vue"
+import { ref, computed } from "vue"
 import type {
   ScheduleGroup,
   ScheduledEvent,
@@ -189,12 +189,13 @@ export const useCronLensStore = defineStore("schedule", () => {
 
   // ── UI state ────────────────────────────────────────────────────────────────
 
-  const view = ref<ViewMode>("timeline")
+  const view = ref<ViewMode>("calendar")
   const useLocalTime = ref(true)
   const searchQuery = ref("")
   const activeGroupIds = ref<Set<string>>(new Set())
   const attrFilterKey = ref<string | null>(null)
   const attrFilterVal = ref("")
+  const timelineDayOffset = ref(0)
 
   function toggleGroupId(id: string) {
     if (activeGroupIds.value.has(id)) {
@@ -208,6 +209,28 @@ export const useCronLensStore = defineStore("schedule", () => {
 
   const veryHighThreshold = ref(60)
   const highThreshold = ref(4)
+
+  // ── Zoom snap ────────────────────────────────────────────────────────────────
+
+  const zoomSnapValue = ref(1)
+  const zoomSnapUnit = ref<"min" | "hour">("hour")
+  const zoomSnapMins = computed(() =>
+    zoomSnapUnit.value === "hour"
+      ? zoomSnapValue.value * 60
+      : zoomSnapValue.value,
+  )
+
+  // ── Zoom range ───────────────────────────────────────────────────────────────
+
+  const zoomStart = ref<number | null>(null)
+  const zoomEnd = ref<number | null>(null)
+
+  function resetZoom() {
+    zoomStart.value = null
+    zoomEnd.value = null
+    zoomSnapValue.value = 1
+    zoomSnapUnit.value = "hour"
+  }
 
   function frequencyTierOf(event: ScheduledEvent): FrequencyTier {
     const n = event.fires_utc.length
@@ -267,6 +290,12 @@ export const useCronLensStore = defineStore("schedule", () => {
     veryHighThreshold,
     highThreshold,
     frequencyTierOf,
+    zoomSnapValue,
+    zoomSnapUnit,
+    zoomSnapMins,
+    zoomStart,
+    zoomEnd,
+    resetZoom,
     // ui state
     view,
     useLocalTime,
@@ -275,6 +304,7 @@ export const useCronLensStore = defineStore("schedule", () => {
     toggleGroupId,
     attrFilterKey,
     attrFilterVal,
+    timelineDayOffset,
     filteredEvents,
   }
 })

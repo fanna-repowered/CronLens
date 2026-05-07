@@ -9,33 +9,74 @@
           class="day-label"
           :class="{ today: isToday }"
           title="Jump to today"
-          @click="dayOffset = 0"
+          @click="store.timelineDayOffset = 0"
         >
           {{ dayLabel }}
         </button>
         <button class="day-nav" title="Next day" @click="shiftDay(1)">›</button>
-      </div>
-      <div class="hours-strip">
-        <div
-          v-for="h in 24"
-          :key="h"
-          class="hour-cell"
-          :class="{
-            major: (h - 1) % 6 === 0,
-            mid: (h - 1) % 2 === 0 && (h - 1) % 6 !== 0,
-          }"
+        <button
+          v-if="store.zoomStart !== null"
+          class="day-nav zoom-reset"
+          title="Reset to full day"
+          @click="resetZoom"
         >
-          {{ String(h - 1).padStart(2, "0") }}
+          24h
+        </button>
+      </div>
+      <div
+        class="hours-strip"
+        @mousedown.prevent="onStripMousedown"
+        @dblclick="resetZoom"
+      >
+        <div
+          v-for="cell in stripCells"
+          :key="cell.label"
+          class="hour-cell"
+          :class="{ major: cell.major, mid: cell.mid }"
+        >
+          {{ cell.label }}
         </div>
+        <!-- drag selection overlay (shows snapped range) -->
+        <template v-if="drag.active">
+          <div
+            class="zoom-select"
+            :style="{
+              left:
+                Math.min(snapFrac(drag.startFrac), snapFrac(drag.endFrac)) *
+                  100 +
+                '%',
+              width:
+                Math.abs(snapFrac(drag.endFrac) - snapFrac(drag.startFrac)) *
+                  100 +
+                '%',
+            }"
+          />
+          <span class="zoom-label">
+            {{ fmtMinute(snapMin(Math.min(drag.startFrac, drag.endFrac))) }}–{{
+              fmtMinute(snapMin(Math.max(drag.startFrac, drag.endFrac)))
+            }}
+          </span>
+        </template>
       </div>
     </div>
 
-    <div class="tl-body">
-      <div
-        v-if="isToday"
-        class="now-needle"
-        :style="{ left: `calc(200px + ${nowPct}%)` }"
-      />
+    <div
+      class="tl-body"
+      :style="{ '--tl-grid-minor': gridMinorCount }"
+      @mousemove="onBodyMousemove"
+      @mouseleave="cursorMin = null"
+    >
+      <!-- overlays positioned relative to bars area only (left: 200px) -->
+      <div class="bars-overlay">
+        <div
+          v-if="cursorMin !== null"
+          class="cursor-line"
+          :style="{ left: pct(cursorMin) }"
+        >
+          <span class="cursor-label">{{ fmtMinute(cursorMin) }}</span>
+        </div>
+        <div v-if="isToday" class="now-needle" :style="{ left: nowPct }" />
+      </div>
 
       <template v-if="nonRecurring.length">
         <button class="tier-row tier-label" @click="oneOffOpen = !oneOffOpen">
@@ -73,7 +114,7 @@
                 v-if="e.last_run_at"
                 class="fire-tick"
                 :style="{
-                  left: oneOffPct(e) + '%',
+                  left: oneOffPct(e),
                   background: colorForEvent(e),
                 }"
                 :title="e.last_run_at"
@@ -112,6 +153,8 @@
             :event="e"
             :color="colorForEvent(e)"
             :use-local="useLocal"
+            :display-start="displayStart"
+            :display-end="displayEnd"
             @hover="onHover"
             @leave="onLeave"
           />
@@ -146,6 +189,8 @@
             :event="e"
             :color="colorForEvent(e)"
             :use-local="useLocal"
+            :display-start="displayStart"
+            :display-end="displayEnd"
             @hover="onHover"
             @leave="onLeave"
           />
@@ -168,7 +213,7 @@
           >
             <path d="M2 3.5l3 3 3-3" />
           </svg>
-          very frequent (&ge;{{ store.veryHighThreshold }}/day)
+          constant (&ge;{{ store.veryHighThreshold }}/day)
         </button>
         <div v-show="bandOpen" class="tier-content">
           <TimelineRow
@@ -177,6 +222,8 @@
             :event="e"
             :color="colorForEvent(e)"
             :use-local="useLocal"
+            :display-start="displayStart"
+            :display-end="displayEnd"
             @hover="onHover"
             @leave="onLeave"
           />
@@ -197,9 +244,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from "vue"
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from "vue"
 import type { ScheduledEvent } from "@/types"
-import { firesOnDay } from "@/composables/useSchedule"
+import { firesOnDay, fmtMinute } from "@/composables/useSchedule"
 import { useCronLensStore } from "@/stores/scheduleStore"
 import TimelineRow from "./TimelineRow.vue"
 import TaskTooltip from "./TaskTooltip.vue"
@@ -234,17 +281,15 @@ function onLeave() {
   hovered.mouse = null
 }
 
-// Day picker
-const dayOffset = ref(0)
-
+// Day picker — offset lives in store so CalendarView can set it
 const selectedDate = computed(() => {
   const d = new Date()
-  d.setDate(d.getDate() + dayOffset.value)
+  d.setDate(d.getDate() + store.timelineDayOffset)
   d.setHours(0, 0, 0, 0)
   return d
 })
 
-const isToday = computed(() => dayOffset.value === 0)
+const isToday = computed(() => store.timelineDayOffset === 0)
 
 const dayLabel = computed(() =>
   selectedDate.value.toLocaleDateString("en-GB", {
@@ -255,7 +300,144 @@ const dayLabel = computed(() =>
 )
 
 function shiftDay(n: number) {
-  dayOffset.value += n
+  store.timelineDayOffset += n
+}
+
+// Zoom — state lives in store so settings panel can reset it
+const drag = reactive({ active: false, startFrac: 0, endFrac: 0 })
+const cursorMin = ref<number | null>(null)
+
+const displayStart = computed(() => store.zoomStart ?? 0)
+const displayEnd = computed(() => store.zoomEnd ?? 1440)
+
+// Reset zoom when navigating to a different day
+watch(
+  () => store.timelineDayOffset,
+  () => store.resetZoom(),
+)
+
+// Auto-set snap resolution when drag-zoom commits
+watch([() => store.zoomStart, () => store.zoomEnd], ([start, end]) => {
+  if (start === null || end === null) return
+  const range = end - start
+  const autoStep = range <= 60 ? 5 : range <= 240 ? 15 : range <= 720 ? 30 : 60
+  if (autoStep >= 60) {
+    store.zoomSnapValue = autoStep / 60
+    store.zoomSnapUnit = "hour"
+  } else {
+    store.zoomSnapValue = autoStep
+    store.zoomSnapUnit = "min"
+  }
+})
+
+// Grid divisions driven by snap setting
+const gridMinorCount = computed(() => {
+  const range = displayEnd.value - displayStart.value
+  return Math.max(1, Math.round(range / store.zoomSnapMins))
+})
+
+function snapToGrid(m: number): number {
+  const snap = store.zoomSnapMins
+  return Math.round(m / snap) * snap
+}
+
+function snapMin(frac: number): number {
+  return snapToGrid(
+    displayStart.value + frac * (displayEnd.value - displayStart.value),
+  )
+}
+
+function snapFrac(frac: number): number {
+  const m = snapMin(frac)
+  return (m - displayStart.value) / (displayEnd.value - displayStart.value)
+}
+
+function pct(m: number): string {
+  const frac =
+    (m - displayStart.value) / (displayEnd.value - displayStart.value)
+  return frac * 100 + "%"
+}
+
+const stripCells = computed(() => {
+  const stepMins = store.zoomSnapMins
+  const cells: { label: string; major: boolean; mid: boolean }[] = []
+  const first = Math.ceil(displayStart.value / stepMins) * stepMins
+  for (let m = first; m <= displayEnd.value; m += stepMins) {
+    const h = Math.floor(m / 60)
+    const min = m % 60
+    cells.push({
+      label:
+        min === 0
+          ? String(h).padStart(2, "0")
+          : `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`,
+      major: min === 0,
+      mid: min !== 0,
+    })
+  }
+  return cells
+})
+
+let dragStripRect: DOMRect | null = null
+
+function fracFromClientX(clientX: number): number {
+  if (!dragStripRect) return 0
+  return Math.max(
+    0,
+    Math.min(1, (clientX - dragStripRect.left) / dragStripRect.width),
+  )
+}
+
+function onStripMousedown(e: MouseEvent) {
+  dragStripRect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  drag.startFrac = fracFromClientX(e.clientX)
+  drag.endFrac = drag.startFrac
+  drag.active = true
+  window.addEventListener("mousemove", onWindowMousemove)
+  window.addEventListener("mouseup", onWindowMouseup)
+}
+
+function onWindowMousemove(e: MouseEvent) {
+  drag.endFrac = fracFromClientX(e.clientX)
+}
+
+function onWindowMouseup(e: MouseEvent) {
+  window.removeEventListener("mousemove", onWindowMousemove)
+  window.removeEventListener("mouseup", onWindowMouseup)
+  if (!drag.active) return
+  drag.endFrac = fracFromClientX(e.clientX)
+  drag.active = false
+  const lo = Math.min(drag.startFrac, drag.endFrac)
+  const hi = Math.max(drag.startFrac, drag.endFrac)
+  const startMin = snapToGrid(
+    displayStart.value + lo * (displayEnd.value - displayStart.value),
+  )
+  const endMin = snapToGrid(
+    displayStart.value + hi * (displayEnd.value - displayStart.value),
+  )
+  if (endMin > startMin) {
+    store.zoomStart = Math.max(0, startMin)
+    store.zoomEnd = Math.min(1440, endMin)
+  }
+}
+
+function resetZoom() {
+  store.resetZoom()
+}
+
+function onBodyMousemove(e: MouseEvent) {
+  const target = e.currentTarget as HTMLElement
+  const rect = target.getBoundingClientRect()
+  const barsLeft = 200
+  const x = e.clientX - rect.left - barsLeft
+  const barsWidth = rect.width - barsLeft
+  if (x < 0 || x > barsWidth) {
+    cursorMin.value = null
+    return
+  }
+  cursorMin.value = Math.round(
+    displayStart.value +
+      (x / barsWidth) * (displayEnd.value - displayStart.value),
+  )
 }
 
 // Now needle
@@ -269,13 +451,17 @@ function getNow() {
     : n.getUTCHours() * 60 + n.getUTCMinutes()
 }
 
-const nowPct = computed(() => (nowMin.value / 1440) * 100 + "%")
+const nowPct = computed(() => pct(nowMin.value))
 onMounted(() => {
   timer = setInterval(() => {
     nowMin.value = getNow()
   }, 30_000)
 })
-onUnmounted(() => clearInterval(timer))
+onUnmounted(() => {
+  clearInterval(timer)
+  window.removeEventListener("mousemove", onWindowMousemove)
+  window.removeEventListener("mouseup", onWindowMouseup)
+})
 
 // Tiers — recurring events filtered to those that fire on the selected day
 const recurring = computed(() =>
@@ -298,13 +484,13 @@ const specific = computed(() =>
   recurring.value.filter((e) => store.frequencyTierOf(e) === "specific"),
 )
 
-function oneOffPct(e: ScheduledEvent): number {
-  if (!e.last_run_at) return 0
+function oneOffPct(e: ScheduledEvent): string {
+  if (!e.last_run_at) return "0%"
   const d = new Date(e.last_run_at)
   const m = props.useLocal
     ? d.getHours() * 60 + d.getMinutes()
     : d.getUTCHours() * 60 + d.getUTCMinutes()
-  return (m / 1440) * 100
+  return pct(m)
 }
 </script>
 
@@ -327,10 +513,16 @@ function oneOffPct(e: ScheduledEvent): number {
   min-width: 200px;
   border-right: 0.5px solid var(--bs-border);
   display: flex;
+  flex-direction: row;
   align-items: center;
-  justify-content: space-between;
   padding: 4px 6px;
-  gap: 4px;
+  gap: 2px;
+}
+
+.tl-day-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .day-nav {
@@ -383,11 +575,23 @@ function oneOffPct(e: ScheduledEvent): number {
 
 .hours-strip {
   flex: 1;
-  display: grid;
-  grid-template-columns: repeat(24, 1fr);
+  display: flex;
+  position: relative;
+  cursor: col-resize;
+  user-select: none;
+}
+
+.zoom-select {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--bs-accent);
+  opacity: 0.25;
+  pointer-events: none;
 }
 
 .hour-cell {
+  flex: 1;
   font-size: 9px;
   color: var(--bs-text-faint);
   font-family: monospace;
@@ -396,7 +600,8 @@ function oneOffPct(e: ScheduledEvent): number {
   min-height: 32px;
   display: flex;
   align-items: flex-end;
-  margin-left: 0.125rem;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .hour-cell.mid {
@@ -408,11 +613,20 @@ function oneOffPct(e: ScheduledEvent): number {
   font-size: 10px;
   font-weight: 600;
   border-right-color: var(--bs-border);
-  margin-left: 0.125rem;
 }
 
 .tl-body {
   position: relative;
+}
+
+.bars-overlay {
+  position: absolute;
+  left: 200px;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 5;
 }
 
 .now-needle {
@@ -422,8 +636,52 @@ function oneOffPct(e: ScheduledEvent): number {
   width: 1px;
   background: var(--bs-danger);
   opacity: 0.5;
-  z-index: 5;
+}
+
+.cursor-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--bs-text-muted);
+  opacity: 0.6;
+  z-index: 1;
+}
+
+.cursor-label {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 9px;
+  font-family: monospace;
+  color: var(--bs-text-muted);
+  background: var(--bs-surface);
+  padding: 1px 3px;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+.zoom-reset {
+  font-size: 9px;
+  font-weight: 600;
+  width: auto;
+  padding: 0 4px;
+  color: var(--bs-accent);
+}
+
+.zoom-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 9px;
+  font-family: monospace;
+  color: var(--bs-text);
+  background: var(--bs-surface);
+  padding: 1px 5px;
+  border-radius: 3px;
   pointer-events: none;
+  white-space: nowrap;
 }
 
 .tier-row {
@@ -534,7 +792,7 @@ function oneOffPct(e: ScheduledEvent): number {
     );
   background-size:
     calc(100% / 4) 100%,
-    calc(100% / 24) 100%;
+    calc(100% / var(--tl-grid-minor, 24)) 100%;
 }
 
 .fire-tick {
