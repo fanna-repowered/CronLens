@@ -1,6 +1,6 @@
 // src/stores/scheduleStore.ts
 import { defineStore } from "pinia"
-import { ref, computed } from "vue"
+import { ref, computed, watch } from "vue"
 import type {
   ScheduleGroup,
   ScheduledEvent,
@@ -11,6 +11,7 @@ import { getAttribute } from "@/composables/useSchedule"
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? ""
 const LS_KEY = "cronlens_groups_v1"
+const LS_SETTINGS_KEY = "cronlens_settings_v1"
 
 // Default groups expressed in terms of `kind` values, not beat-specific names.
 // When adapting to another backend, update `kinds` to match its kind strings.
@@ -205,6 +206,47 @@ export const useCronLensStore = defineStore("schedule", () => {
     }
   }
 
+  // ── Settings persistence ─────────────────────────────────────────────────────
+
+  function loadSettings() {
+    try {
+      const raw = localStorage.getItem(LS_SETTINGS_KEY)
+      if (!raw) return
+      const s = JSON.parse(raw)
+      if (typeof s.veryHighThreshold === "number")
+        veryHighThreshold.value = s.veryHighThreshold
+      if (typeof s.highThreshold === "number")
+        highThreshold.value = s.highThreshold
+      if (typeof s.zoomSnapValue === "number")
+        zoomSnapValue.value = s.zoomSnapValue
+      if (s.zoomSnapUnit === "min" || s.zoomSnapUnit === "hour")
+        zoomSnapUnit.value = s.zoomSnapUnit
+      if (s.view) view.value = s.view
+      if (typeof s.useLocalTime === "boolean")
+        useLocalTime.value = s.useLocalTime
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function persistSettings() {
+    try {
+      localStorage.setItem(
+        LS_SETTINGS_KEY,
+        JSON.stringify({
+          veryHighThreshold: veryHighThreshold.value,
+          highThreshold: highThreshold.value,
+          zoomSnapValue: zoomSnapValue.value,
+          zoomSnapUnit: zoomSnapUnit.value,
+          view: view.value,
+          useLocalTime: useLocalTime.value,
+        }),
+      )
+    } catch {
+      /* quota */
+    }
+  }
+
   // ── Frequency tiers ──────────────────────────────────────────────────────────
 
   const veryHighThreshold = ref(60)
@@ -231,6 +273,19 @@ export const useCronLensStore = defineStore("schedule", () => {
     zoomSnapValue.value = 1
     zoomSnapUnit.value = "hour"
   }
+
+  loadSettings()
+  watch(
+    [
+      veryHighThreshold,
+      highThreshold,
+      zoomSnapValue,
+      zoomSnapUnit,
+      view,
+      useLocalTime,
+    ],
+    persistSettings,
+  )
 
   function frequencyTierOf(event: ScheduledEvent): FrequencyTier {
     const n = event.fires_utc.length

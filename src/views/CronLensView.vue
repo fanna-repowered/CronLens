@@ -132,26 +132,75 @@
           <div>
             <div class="tier-config">
               <span class="tier-lbl">Constant ≥</span>
-              <input
-                v-model.number="store.veryHighThreshold"
-                type="number"
-                min="1"
-                max="1440"
-                class="tier-input"
+              <div
+                class="num-input"
                 title="Tasks with this many fires/day or more are shown as a solid band"
-              />
+              >
+                <button
+                  class="num-btn"
+                  @click="
+                    store.veryHighThreshold = Math.max(
+                      1,
+                      store.veryHighThreshold - 1,
+                    )
+                  "
+                >
+                  −
+                </button>
+                <input
+                  v-model.number="store.veryHighThreshold"
+                  type="number"
+                  min="1"
+                  max="1440"
+                  class="tier-input"
+                />
+                <button
+                  class="num-btn"
+                  @click="
+                    store.veryHighThreshold = Math.min(
+                      1440,
+                      store.veryHighThreshold + 1,
+                    )
+                  "
+                >
+                  +
+                </button>
+              </div>
               <span class="tier-lbl">/day</span>
             </div>
             <div class="tier-config">
               <span class="tier-lbl">Frequent ≥</span>
-              <input
-                v-model.number="store.highThreshold"
-                type="number"
-                min="1"
-                max="1440"
-                class="tier-input"
+              <div
+                class="num-input"
                 title="Tasks with this many fires/day or more are shown as individual ticks"
-              />
+              >
+                <button
+                  class="num-btn"
+                  @click="
+                    store.highThreshold = Math.max(1, store.highThreshold - 1)
+                  "
+                >
+                  −
+                </button>
+                <input
+                  v-model.number="store.highThreshold"
+                  type="number"
+                  min="1"
+                  max="1440"
+                  class="tier-input"
+                />
+                <button
+                  class="num-btn"
+                  @click="
+                    store.highThreshold = Math.min(
+                      1440,
+                      store.highThreshold + 1,
+                    )
+                  "
+                >
+                  +
+                </button>
+              </div>
               <span class="tier-lbl">/day</span>
             </div>
             <div
@@ -159,14 +208,32 @@
               :class="{ 'zoom-disabled': store.view === 'calendar' }"
             >
               <span class="tier-lbl">Zoom</span>
-              <input
-                v-model.number="store.zoomSnapValue"
-                type="number"
-                min="1"
-                class="tier-input"
-                :disabled="store.view === 'calendar'"
-                title="Drag-select snaps to this interval on the timeline"
-              />
+              <div class="num-input">
+                <button
+                  class="num-btn"
+                  :disabled="store.view === 'calendar'"
+                  @click="
+                    store.zoomSnapValue = Math.max(1, store.zoomSnapValue - 1)
+                  "
+                >
+                  −
+                </button>
+                <input
+                  v-model.number="store.zoomSnapValue"
+                  type="number"
+                  min="1"
+                  class="tier-input"
+                  :disabled="store.view === 'calendar'"
+                  title="Drag-select snaps to this interval on the timeline"
+                />
+                <button
+                  class="num-btn"
+                  :disabled="store.view === 'calendar'"
+                  @click="store.zoomSnapValue++"
+                >
+                  +
+                </button>
+              </div>
               <select
                 v-model="store.zoomSnapUnit"
                 class="snap-unit"
@@ -558,21 +625,58 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
-.tier-input {
-  width: 5rem;
-  font-size: 11px;
-  padding: 3px 5px;
+.num-input {
+  display: inline-flex;
+  align-items: stretch;
   border: 0.5px solid var(--bs-border);
   border-radius: 4px;
+  overflow: hidden;
+}
+
+.num-input:focus-within {
+  border-color: var(--bs-accent);
+}
+
+.num-btn {
+  padding: 0 5px;
+  font-size: 13px;
+  line-height: 1;
+  background: var(--bs-surface);
+  color: var(--bs-text-muted);
+  border: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.num-btn:hover:not(:disabled) {
+  background: var(--bs-border);
+  color: var(--bs-text);
+}
+
+.num-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tier-input {
+  width: 3.5rem;
+  font-size: 11px;
+  padding: 3px 5px;
+  border: none;
   background: var(--bs-bg);
   color: var(--bs-text);
   font-family: monospace;
-  text-align: right;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+
+.tier-input::-webkit-inner-spin-button,
+.tier-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
 }
 
 .tier-input:focus {
   outline: none;
-  border-color: var(--bs-accent);
 }
 
 .snap-unit {
