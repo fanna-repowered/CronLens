@@ -285,7 +285,11 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from "vue"
 import type { ScheduledEvent } from "@/types"
-import { firesOnDay, fmtMinute } from "@/composables/useSchedule"
+import {
+  firesOnDay,
+  fmtMinute,
+  toDisplayMinute,
+} from "@/composables/useSchedule"
 import { useCronLensStore } from "@/stores/scheduleStore"
 import TimelineRow from "./TimelineRow.vue"
 import TaskTooltip from "./TaskTooltip.vue"
@@ -402,7 +406,7 @@ const stripCells = computed(() => {
   const stepMins = store.zoomSnapMins
   const cells: { label: string; major: boolean; mid: boolean }[] = []
   const first = Math.ceil(displayStart.value / stepMins) * stepMins
-  for (let m = first; m <= displayEnd.value; m += stepMins) {
+  for (let m = first; m < displayEnd.value; m += stepMins) {
     const h = Math.floor(m / 60)
     const min = m % 60
     cells.push({
@@ -504,14 +508,27 @@ onUnmounted(() => {
 })
 
 // Tiers — recurring events filtered to those that fire on the selected day
+function hasFireInRange(e: ScheduledEvent): boolean {
+  if (store.zoomStart === null) return true
+  const start = displayStart.value
+  const end = displayEnd.value
+  return e.fires_utc.some((utcMin) => {
+    const m = toDisplayMinute(utcMin, props.useLocal)
+    return m >= start && m <= end
+  })
+}
+
 const recurring = computed(() =>
   props.events.filter(
     (e) =>
       e.recurrence === "recurring" &&
-      firesOnDay(e, selectedDate.value.getDay()),
+      firesOnDay(e, selectedDate.value.getDay()) &&
+      hasFireInRange(e),
   ),
 )
-const neverRan = computed(() => props.events.filter((e) => !e.last_run_at))
+const neverRan = computed(() =>
+  store.zoomStart === null ? props.events.filter((e) => !e.last_run_at) : [],
+)
 const nonRecurring = computed(() => {
   const selectedIso = selectedDate.value.toLocaleDateString("sv")
   return props.events.filter((e) => {
@@ -520,7 +537,14 @@ const nonRecurring = computed(() => {
     const iso = props.useLocal
       ? d.toLocaleDateString("sv")
       : d.toISOString().slice(0, 10)
-    return iso === selectedIso
+    if (iso !== selectedIso) return false
+    if (store.zoomStart !== null) {
+      const m = props.useLocal
+        ? d.getHours() * 60 + d.getMinutes()
+        : d.getUTCHours() * 60 + d.getUTCMinutes()
+      return m >= displayStart.value && m <= displayEnd.value
+    }
+    return true
   })
 })
 const veryHigh = computed(() =>

@@ -7,7 +7,7 @@
 
       <div class="tt-row">
         <span class="tt-key">schedule</span>
-        <span class="tt-val">{{ event.schedule_display }}</span>
+        <span class="tt-val">{{ scheduleDisplay }}</span>
       </div>
       <div v-if="event.recurrence === 'recurring'" class="tt-row">
         <span class="tt-key">fires/day</span>
@@ -26,7 +26,7 @@
         <span class="tt-val">{{ event.total_run_count.toLocaleString() }}</span>
       </div>
 
-      <template v-if="event.attributes.length">
+      <template v-if="event.attributes?.length">
         <hr class="tt-divider" />
         <div v-for="attr in event.attributes" :key="attr.key" class="tt-row">
           <span class="tt-key">{{ attr.label ?? attr.key }}</span>
@@ -78,6 +78,11 @@ const nextFires = computed(() => {
     .slice(0, 4)
     .map(fmtMinute)
     .join("  ·  ")
+})
+
+const scheduleDisplay = computed(() => {
+  const s = props.event?.schedule_display ?? ""
+  return s.length > 80 ? s.slice(0, 77) + "…" : s
 })
 
 const lastRunStr = computed(() => {

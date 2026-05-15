@@ -42,8 +42,7 @@
                   store.excludedGroupIds.size === 0,
               }"
               @click="
-                store.activeGroupIds.clear()
-                store.excludedGroupIds.clear()
+                (store.activeGroupIds.clear(), store.excludedGroupIds.clear())
               "
             >
               All
@@ -314,8 +313,17 @@
             placeholder="Search events…"
           />
           <template v-if="attrValueCounts.length">
-            <select v-model="store.attrFilterKey" class="id-select">
-              <option :value="null">...</option>
+            <select
+              :value="store.attrFilterKey"
+              class="id-select"
+              @change="
+                (e) => {
+                  store.attrFilterKey = (e.target as HTMLSelectElement).value
+                  store.attrFilterVal = ''
+                }
+              "
+            >
+              <option value="">...</option>
               <option
                 v-for="{ key, count } in attrValueCounts"
                 :key="key"
@@ -434,7 +442,16 @@ const filtered = computed(() => {
   const base = store.includeDisabled
     ? events.value
     : events.value.filter((e) => e.enabled)
-  return store.filteredEvents(base)
+  let list = store.filteredEvents(base)
+  if (store.attrFilterKey && store.attrFilterVal.trim()) {
+    const key = store.attrFilterKey
+    const val = store.attrFilterVal.trim().toLowerCase()
+    list = list.filter((e) => {
+      const attr = (e.attributes ?? []).find((a) => a.key === key)
+      return attr ? attr.value.toLowerCase().includes(val) : false
+    })
+  }
+  return list
 })
 
 const totalFires = computed(() =>
@@ -444,14 +461,31 @@ const totalFires = computed(() =>
     .toLocaleString(),
 )
 
-const nonRecurringCount = computed(
-  () => filtered.value.filter((e) => e.recurrence !== "recurring").length,
-)
+const nonRecurringCount = computed(() => {
+  const useLocal = store.useLocalTime
+  return filtered.value.filter((e) => {
+    if (e.recurrence === "recurring") return false
+    if (!e.last_run_at) return false
+    const iso = useLocal
+      ? new Date(e.last_run_at).toLocaleDateString("sv")
+      : e.last_run_at.slice(0, 10)
+    if (store.view === "timeline") {
+      const d = new Date()
+      d.setDate(d.getDate() + store.timelineDayOffset)
+      const dayIso = useLocal
+        ? d.toLocaleDateString("sv")
+        : d.toISOString().slice(0, 10)
+      return iso === dayIso
+    }
+    const { from, to } = store.currentWeekRange
+    return iso >= from && iso <= to
+  }).length
+})
 
 const attrValueCounts = computed(() => {
   const map = new Map<string, Set<string>>()
   for (const e of events.value) {
-    for (const a of e.attributes) {
+    for (const a of e.attributes ?? []) {
       if (!a.filterable) continue
       if (!map.has(a.key)) map.set(a.key, new Set())
       map.get(a.key)!.add(a.value)
@@ -489,7 +523,6 @@ onMounted(async () => {
   background: var(--bs-bg);
   border: 0.5px solid var(--bs-border);
   border-radius: 10px;
-  overflow: hidden;
   scrollbar-gutter: stable;
 }
 

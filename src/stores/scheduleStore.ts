@@ -7,7 +7,6 @@ import type {
   FrequencyTier,
   ViewMode,
 } from "@/types"
-import { getAttribute } from "@/composables/useSchedule"
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? ""
 const LS_KEY = "cronlens_groups_v1"
@@ -196,7 +195,7 @@ export const useCronLensStore = defineStore("schedule", () => {
   const searchQuery = ref("")
   const activeGroupIds = ref<Set<string>>(new Set())
   const excludedGroupIds = ref<Set<string>>(new Set())
-  const attrFilterKey = ref<string | null>(null)
+  const attrFilterKey = ref("")
   const attrFilterVal = ref("")
   const timelineDayOffset = ref(0)
   const weekOffset = ref(0)
@@ -361,15 +360,6 @@ export const useCronLensStore = defineStore("schedule", () => {
           .flatMap((g) => g.kinds),
       )
       list = list.filter((e) => !excludedKinds.has(e.kind))
-    }
-
-    if (attrFilterKey.value && attrFilterVal.value.trim()) {
-      const key = attrFilterKey.value
-      const val = attrFilterVal.value.trim().toLowerCase()
-      list = list.filter((e) => {
-        const attr = getAttribute(e, key)
-        return attr ? attr.value.toLowerCase().includes(val) : false
-      })
     }
 
     return list
