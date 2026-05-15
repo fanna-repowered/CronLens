@@ -83,5 +83,5 @@ export interface GroupsResponse {
 
 // ── UI types ──────────────────────────────────────────────────────────────────
 
-export type FrequencyTier = "very-high" | "high" | "specific"
+export type FrequencyTier = "very-high" | "high" | "specific" | "never-ran"
 export type ViewMode = "timeline" | "calendar"

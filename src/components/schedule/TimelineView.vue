@@ -111,15 +111,13 @@
             </div>
             <div class="tl-bars">
               <div
-                v-if="e.last_run_at"
                 class="fire-tick"
                 :style="{
                   left: oneOffPct(e),
                   background: colorForEvent(e),
                 }"
-                :title="e.last_run_at"
+                :title="e.last_run_at!"
               />
-              <span v-else class="no-run">never ran</span>
             </div>
           </div>
         </div>
@@ -230,6 +228,47 @@
         </div>
       </template>
 
+      <template v-if="neverRan.length">
+        <button
+          class="tier-row tier-label"
+          @click="neverRanOpen = !neverRanOpen"
+        >
+          <svg
+            class="chevron"
+            :class="{ open: neverRanOpen }"
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M2 3.5l3 3 3-3" />
+          </svg>
+          never ran
+        </button>
+        <div v-show="neverRanOpen" class="tier-content">
+          <div
+            v-for="e in neverRan"
+            :key="e.id"
+            class="tl-row"
+            @mouseenter="(ev) => onHover(ev, e)"
+            @mousemove="(ev) => onHover(ev, e)"
+            @mouseleave="onLeave"
+          >
+            <div class="tl-name" :title="e.name">
+              <span class="dot off" />
+              <span class="name-text">{{ e.name }}</span>
+            </div>
+            <div class="tl-bars">
+              <span class="no-run">never ran</span>
+            </div>
+          </div>
+        </div>
+      </template>
+
       <div v-if="!events.length" class="empty-state">
         no events match the current filters
       </div>
@@ -256,6 +295,7 @@ const bandOpen = ref(true)
 const oneOffOpen = ref(true)
 const frequentOpen = ref(true)
 const scheduledOpen = ref(true)
+const neverRanOpen = ref(true)
 
 const props = defineProps<{
   events: ScheduledEvent[]
@@ -471,9 +511,18 @@ const recurring = computed(() =>
       firesOnDay(e, selectedDate.value.getDay()),
   ),
 )
-const nonRecurring = computed(() =>
-  props.events.filter((e) => e.recurrence !== "recurring"),
-)
+const neverRan = computed(() => props.events.filter((e) => !e.last_run_at))
+const nonRecurring = computed(() => {
+  const selectedIso = selectedDate.value.toLocaleDateString("sv")
+  return props.events.filter((e) => {
+    if (e.recurrence === "recurring" || !e.last_run_at) return false
+    const d = new Date(e.last_run_at)
+    const iso = props.useLocal
+      ? d.toLocaleDateString("sv")
+      : d.toISOString().slice(0, 10)
+    return iso === selectedIso
+  })
+})
 const veryHigh = computed(() =>
   recurring.value.filter((e) => store.frequencyTierOf(e) === "very-high"),
 )

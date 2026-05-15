@@ -7,95 +7,222 @@
       <button class="today-btn" @click="weekOffset = 0">today</button>
     </div>
 
-    <div class="cal-grid">
+    <!-- Day header row -->
+    <div class="cal-row cal-header-row">
       <div
-        v-for="day in weekDays"
-        :key="day.iso"
-        class="cal-day"
-        :class="{ today: day.isToday }"
-        title="Double-click to open in timeline"
-        @dblclick="navigateToDay(day.date)"
+        v-for="wd in weekData"
+        :key="wd.day.iso"
+        class="cal-cell"
+        :class="{ today: wd.day.isToday }"
       >
-        <div class="day-header">
-          <span class="day-name">{{ day.dayName }}</span>
-          <span class="day-num" :class="{ today: day.isToday }">{{
-            day.dayNum
-          }}</span>
-        </div>
-
-        <!-- Very-high: one badge per group -->
-        <div v-if="veryHighGroups.length" class="tier-section">
-          <div class="tier-tag">Constant</div>
-          <div
-            v-for="g in veryHighGroups"
-            :key="g.id"
-            class="vhigh-badge"
-            :style="{
-              background: g.color + '20',
-              borderColor: g.color + '60',
-              color: g.color,
-            }"
-            :title="g.names.join('\n')"
-          >
-            {{ g.name }} &times;{{ g.firesPerDay }}/day
-          </div>
-        </div>
-
-        <!-- High: compact pills -->
-        <div v-if="highForDay(day).length" class="tier-section">
-          <div class="tier-tag">frequent</div>
-          <div
-            v-for="e in highForDay(day)"
-            :key="e.id"
-            class="cal-pill"
-            :style="{
-              borderLeft: `2px solid ${colorForEvent(e)}`,
-              background: colorForEvent(e) + '15',
-            }"
-            @mouseenter="(ev) => (hovered = { ev: e, mouse: ev })"
-            @mousemove="(ev) => (hovered = { ev: e, mouse: ev })"
-            @mouseleave="hovered = null"
-          >
-            <span class="pill-name">{{ e.name }}</span>
-            <span class="pill-count">{{ e.fires_utc.length }}&times;</span>
-          </div>
-        </div>
-
-        <!-- Specific: time + name -->
-        <div v-if="specificForDay(day).length" class="tier-section">
-          <div class="tier-tag">scheduled</div>
-          <div
-            v-for="{ ev, fires } in specificForDay(day)"
-            :key="ev.id"
-            class="cal-event"
-            :style="{ borderLeft: `2px solid ${colorForEvent(ev)}` }"
-            @mouseenter="(e) => (hovered = { ev, mouse: e })"
-            @mousemove="(e) => (hovered = { ev, mouse: e })"
-            @mouseleave="hovered = null"
-          >
-            <span class="event-time">{{
-              fires.map(fmtMinute).join(" · ")
-            }}</span>
-            <span class="event-name">{{ ev.name }}</span>
-          </div>
-        </div>
-
-        <!-- One-off / clocked that ran on this day -->
-        <div v-if="nonRecurringForDay(day).length" class="tier-section">
-          <div class="tier-tag">one-off</div>
-          <div
-            v-for="e in nonRecurringForDay(day)"
-            :key="e.id"
-            class="cal-event one-off"
-            :style="{ borderLeft: `2px solid ${colorForEvent(e)}` }"
-          >
-            <span class="event-time">{{ runTime(e.last_run_at!) }}</span>
-            <span class="event-name">{{ e.name }}</span>
-          </div>
-        </div>
-
-        <div v-if="isEmpty(day)" class="day-empty">—</div>
+        <span class="day-name">{{ wd.day.dayName }}</span>
+        <span class="day-num" :class="{ today: wd.day.isToday }">{{
+          wd.day.dayNum
+        }}</span>
       </div>
+    </div>
+
+    <!-- One-off tier -->
+    <button class="cal-tier-label" @click="oneOffOpen = !oneOffOpen">
+      <svg
+        class="chevron"
+        :class="{ open: oneOffOpen }"
+        width="10"
+        height="10"
+        viewBox="0 0 10 10"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M2 3.5l3 3 3-3" />
+      </svg>
+      one-off (past runs)
+    </button>
+    <div v-show="oneOffOpen" class="cal-row">
+      <div
+        v-for="wd in weekData"
+        :key="wd.day.iso"
+        class="cal-cell"
+        :class="{ today: wd.day.isToday }"
+        title="Double-click to open in timeline"
+        @dblclick="navigateToDay(wd.day.date)"
+      >
+        <div
+          v-for="e in wd.oneOff"
+          :key="e.id"
+          class="cal-event one-off"
+          :style="{ borderLeft: `2px solid ${colorForEvent(e)}` }"
+        >
+          <span class="event-time">{{ runTime(e.last_run_at!) }}</span>
+          <span class="event-name">{{ e.name }}</span>
+        </div>
+        <div v-if="!wd.oneOff.length" class="day-empty">—</div>
+      </div>
+    </div>
+
+    <!-- Scheduled tier -->
+    <button class="cal-tier-label" @click="scheduledOpen = !scheduledOpen">
+      <svg
+        class="chevron"
+        :class="{ open: scheduledOpen }"
+        width="10"
+        height="10"
+        viewBox="0 0 10 10"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M2 3.5l3 3 3-3" />
+      </svg>
+      scheduled
+    </button>
+    <div v-show="scheduledOpen" class="cal-row">
+      <div
+        v-for="wd in weekData"
+        :key="wd.day.iso"
+        class="cal-cell"
+        :class="{ today: wd.day.isToday }"
+        title="Double-click to open in timeline"
+        @dblclick="navigateToDay(wd.day.date)"
+      >
+        <div
+          v-for="{ ev, fires } in wd.scheduled"
+          :key="ev.id"
+          class="cal-event"
+          :style="{ borderLeft: `2px solid ${colorForEvent(ev)}` }"
+          @mouseenter="(e) => (hovered = { ev, mouse: e })"
+          @mousemove="(e) => (hovered = { ev, mouse: e })"
+          @mouseleave="hovered = null"
+        >
+          <span class="event-time">{{ fires.map(fmtMinute).join(" · ") }}</span>
+          <span class="event-name">{{ ev.name }}</span>
+        </div>
+        <div v-if="!wd.scheduled.length" class="day-empty">—</div>
+      </div>
+    </div>
+
+    <!-- Frequent tier -->
+    <button class="cal-tier-label" @click="frequentOpen = !frequentOpen">
+      <svg
+        class="chevron"
+        :class="{ open: frequentOpen }"
+        width="10"
+        height="10"
+        viewBox="0 0 10 10"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M2 3.5l3 3 3-3" />
+      </svg>
+      frequent
+    </button>
+    <div v-show="frequentOpen" class="cal-row">
+      <div
+        v-for="wd in weekData"
+        :key="wd.day.iso"
+        class="cal-cell"
+        :class="{ today: wd.day.isToday }"
+        title="Double-click to open in timeline"
+        @dblclick="navigateToDay(wd.day.date)"
+      >
+        <div
+          v-for="e in wd.frequent"
+          :key="e.id"
+          class="cal-pill"
+          :style="{
+            borderLeft: `2px solid ${colorForEvent(e)}`,
+            background: colorForEvent(e) + '15',
+          }"
+          @mouseenter="(ev) => (hovered = { ev: e, mouse: ev })"
+          @mousemove="(ev) => (hovered = { ev: e, mouse: ev })"
+          @mouseleave="hovered = null"
+        >
+          <span class="pill-name">{{ e.name }}</span>
+          <span class="pill-count">{{ e.fires_utc.length }}&times;</span>
+        </div>
+        <div v-if="!wd.frequent.length" class="day-empty">—</div>
+      </div>
+    </div>
+
+    <!-- Constant tier -->
+    <button class="cal-tier-label" @click="constantOpen = !constantOpen">
+      <svg
+        class="chevron"
+        :class="{ open: constantOpen }"
+        width="10"
+        height="10"
+        viewBox="0 0 10 10"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M2 3.5l3 3 3-3" />
+      </svg>
+      constant
+    </button>
+    <div v-show="constantOpen" class="cal-row">
+      <div
+        v-for="wd in weekData"
+        :key="wd.day.iso"
+        class="cal-cell"
+        :class="{ today: wd.day.isToday }"
+      >
+        <div
+          v-for="g in veryHighGroups"
+          :key="g.id"
+          class="vhigh-badge"
+          :style="{
+            background: g.color + '20',
+            borderColor: g.color + '60',
+            color: g.color,
+          }"
+          :title="g.names.join('\n')"
+        >
+          {{ g.name }} &times;{{ g.firesPerDay }}/day
+        </div>
+        <div v-if="!veryHighGroups.length" class="day-empty">—</div>
+      </div>
+    </div>
+
+    <!-- Never ran tier -->
+    <button class="cal-tier-label" @click="neverRanOpen = !neverRanOpen">
+      <svg
+        class="chevron"
+        :class="{ open: neverRanOpen }"
+        width="10"
+        height="10"
+        viewBox="0 0 10 10"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M2 3.5l3 3 3-3" />
+      </svg>
+      never ran
+    </button>
+    <div v-show="neverRanOpen" class="never-ran-section">
+      <div v-if="neverRan.length" class="never-ran-list">
+        <div
+          v-for="e in neverRan"
+          :key="e.id"
+          class="never-ran-item"
+          :style="{ borderLeft: `2px solid ${colorForEvent(e)}` }"
+        >
+          {{ e.name }}
+        </div>
+      </div>
+      <div v-else class="never-ran-empty">—</div>
     </div>
 
     <TaskTooltip
@@ -138,6 +265,12 @@ const props = defineProps<{
 const weekOffset = ref(0)
 const hovered = ref<{ ev: ScheduledEvent; mouse: MouseEvent } | null>(null)
 const todayStr = new Date().toDateString()
+
+const oneOffOpen = ref(false)
+const scheduledOpen = ref(false)
+const frequentOpen = ref(false)
+const constantOpen = ref(false)
+const neverRanOpen = ref(false)
 
 function navigateToDay(date: Date) {
   const today = new Date()
@@ -182,8 +315,9 @@ function shift(n: number) {
 const recurring = computed(() =>
   props.events.filter((e) => e.recurrence === "recurring"),
 )
+const neverRan = computed(() => props.events.filter((e) => !e.last_run_at))
 const nonRecurring = computed(() =>
-  props.events.filter((e) => e.recurrence !== "recurring"),
+  props.events.filter((e) => e.recurrence !== "recurring" && !!e.last_run_at),
 )
 
 // Very-high: grouped badges (same for all days)
@@ -248,13 +382,14 @@ function nonRecurringForDay(day: DayMeta) {
   })
 }
 
-function isEmpty(day: DayMeta) {
-  return (
-    !highForDay(day).length &&
-    !specificForDay(day).length &&
-    !nonRecurringForDay(day).length
-  )
-}
+const weekData = computed(() =>
+  weekDays.value.map((day) => ({
+    day,
+    oneOff: nonRecurringForDay(day),
+    scheduled: specificForDay(day),
+    frequent: highForDay(day),
+  })),
+)
 
 function runTime(iso: string): string {
   const d = new Date(iso)
@@ -285,32 +420,53 @@ function runTime(iso: string): string {
   margin-left: 6px;
   font-size: 12px;
 }
-.cal-grid {
+.cal-row {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
+  border-top: 0.5px solid var(--bs-border-faint);
 }
-.cal-day {
+.cal-header-row {
+  border-top: none;
+  border-bottom: 0.5px solid var(--bs-border);
+}
+.cal-cell {
   border-right: 0.5px solid var(--bs-border-faint);
-  padding-bottom: 8px;
-  min-height: 280px;
-  cursor: default;
+  padding: 4px 4px 6px;
 }
-.cal-day:last-child {
+.cal-cell:last-child {
   border-right: none;
 }
-.cal-day.today {
+.cal-cell.today {
   background: var(--bs-surface);
 }
-.cal-day:hover {
-  background: var(--bs-surface);
-}
-.day-header {
+.cal-header-row .cal-cell {
   display: flex;
   align-items: baseline;
   gap: 5px;
-  padding: 8px 6px 5px;
-  border-bottom: 0.5px solid var(--bs-border-faint);
-  margin-bottom: 3px;
+  padding: 8px 6px 6px;
+}
+.cal-tier-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--bs-text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  border-top: 0.5px solid var(--bs-border-faint);
+  cursor: pointer;
+  text-align: left;
+}
+.cal-tier-label:hover {
+  color: var(--bs-text);
+  background: var(--bs-surface);
+  border-color: var(--bs-border-faint);
 }
 .day-name {
   font-size: 9px;
@@ -327,17 +483,6 @@ function runTime(iso: string): string {
 }
 .day-num.today {
   color: var(--bs-accent);
-}
-.tier-section {
-  padding: 3px 4px 1px;
-}
-.tier-tag {
-  font-size: 9px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--bs-text-faint);
-  padding: 2px 0 2px 2px;
 }
 .vhigh-badge {
   font-size: 10px;
@@ -398,7 +543,7 @@ function runTime(iso: string): string {
 }
 .day-empty {
   text-align: center;
-  padding: 20px 0;
+  padding: 8px 0;
   font-size: 12px;
   color: var(--bs-text-faint);
 }
@@ -416,5 +561,34 @@ button {
 button:hover {
   color: var(--bs-text);
   border-color: var(--bs-border-strong);
+}
+.chevron {
+  transition: transform 0.15s;
+  flex-shrink: 0;
+}
+.chevron.open {
+  transform: rotate(180deg);
+}
+.never-ran-section {
+  padding: 6px 8px;
+}
+.never-ran-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.never-ran-item {
+  font-size: 11px;
+  color: var(--bs-text-muted);
+  padding: 2px 6px 2px 5px;
+  background: var(--bs-surface);
+  border-radius: 3px;
+}
+.never-ran-empty {
+  text-align: center;
+  padding: 6px 0;
+  font-size: 12px;
+  color: var(--bs-text-faint);
 }
 </style>

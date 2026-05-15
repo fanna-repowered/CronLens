@@ -104,14 +104,27 @@ If the parent app manages dark mode via a class, override the variables there.
 ## Key design decisions
 
 ### Frequency tiers
-Tasks are split into three bands based on fires-per-day (computed from crontab):
-- **very-high** ≥ rendered as a solid colour band (e.g. `*/2` runs 720×/day)
-- **high** ≥ day — individual tick marks per fire
-- **specific** < 4/day — individual ticks, shown with fire times in calendar
+Tasks are bucketed into four display tiers. The tier is determined by `frequencyTierOf()` in
+`scheduleStore.ts`, which checks `last_run_at` first:
+
+| Tier | Criterion | Rendering |
+|---|---|---|
+| **never-ran** | `last_run_at === null` | Listed below all other tiers; no timeline bar |
+| **specific** | < `highThreshold` fires/day | Individual ticks with fire times in calendar |
+| **high** | ≥ `highThreshold` and < `veryHighThreshold` fires/day | Individual ticks |
+| **very-high** | ≥ `veryHighThreshold` fires/day | Solid colour band |
+
+`highThreshold` (default 4) and `veryHighThreshold` (default 60) are user-configurable in
+the settings panel and persisted to localStorage.
 
 ### One-off tasks
-Tasks with `one_off = true` or `schedule.type === 'clocked'` are plotted only at
-their `last_run_at` datetime. If `last_run_at` is null they show as "never ran".
+Tasks with `recurrence === "one_off"` or `"clocked"` and `last_run_at` set are plotted only
+at their `last_run_at` datetime. Tasks with `last_run_at === null` fall into the
+**never-ran** tier regardless of their `recurrence` type.
+
+Both the timeline and the calendar only show one-off tasks on the day that matches their
+`last_run_at` date. They are invisible on all other days — including future dates — so a
+2024 one-off will not appear when viewing a 2026 week.
 
 ### Groups
 Groups map task *function names* (the `task` field, e.g. `analyze_images`) to a

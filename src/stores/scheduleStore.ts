@@ -288,6 +288,7 @@ export const useCronLensStore = defineStore("schedule", () => {
   )
 
   function frequencyTierOf(event: ScheduledEvent): FrequencyTier {
+    if (!event.last_run_at) return "never-ran"
     const n = event.fires_utc.length
     if (n >= veryHighThreshold.value) return "very-high"
     if (n >= highThreshold.value) return "high"
