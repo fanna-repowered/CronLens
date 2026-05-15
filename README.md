@@ -107,17 +107,27 @@ All group mutations are optimistic: the UI updates immediately and the API call 
 
 ```bash
 yarn install
-yarn dev          # dev server at http://localhost:5173
+yarn dev          # dev server at http://localhost:5179
 ```
 
-In development the Vite dev server proxies all `/api/*` requests to `http://localhost:8000`. Point this at your backend by setting `VITE_API_BASE` in the shell:
+In development the Vite dev server proxies all `/api/*` requests to `http://localhost:8000`. Configure the proxy via a `.env.local` file in the project root (gitignored — never committed):
 
 ```bash
-VITE_API_BASE=http://my-backend:8000 yarn dev     # run locally with a custom API base
-VITE_API_BASE=http://my-backend:8000 yarn build   # production build against a remote API
-yarn preview                                       # preview the production build locally
-yarn lint                                          # oxlint + eslint
-yarn format                                        # prettier
+# .env.local
+API_BASE=http://localhost:8000       # base URL of the backend server
+API_PREFIX=/api                      # path prefix the backend serves the endpoints under
+API_TOKEN=abc123                     # API token — sent as "Authorization: Token <value>"
 ```
 
-> **Split-origin setup** (frontend on a CDN, API on a separate domain): add CORS headers on the API side and set `VITE_API_BASE` at build time as shown above.
+
+These variables are proxy-only and never exposed to the browser bundle.
+
+```bash
+yarn dev          # dev server at http://localhost:5179
+yarn build        # production build (API_BASE is not used — configure CORS on the server)
+yarn preview      # preview the production build locally
+yarn lint         # oxlint + eslint
+yarn format       # prettier
+```
+
+**Split-origin setup** (frontend on a CDN, API on a separate domain): add CORS headers on the API side and set `VITE_API_BASE` at build time as shown above.

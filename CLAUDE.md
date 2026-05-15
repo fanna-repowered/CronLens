@@ -14,15 +14,15 @@ REST API and renders it without any server-side rendering.
 
 ## Stack
 
-| Layer | Choice |
-|---|---|
-| Framework | Vue 3 (Composition API, `<script setup>`) |
-| Language | TypeScript (strict) |
-| Build | Vite 8 |
-| State | Pinia (`useCronLensStore`) |
-| Routing | Vue Router 5 (single route `/`) |
-| Styling | Scoped `<style>` blocks + CSS custom properties. No Tailwind, no CSS-in-JS. |
-| Tests | None yet — add Vitest if needed |
+| Layer     | Choice                                                                      |
+|-----------|-----------------------------------------------------------------------------|
+| Framework | Vue 3 (Composition API, `<script setup>`)                                   |
+| Language  | TypeScript (strict)                                                         |
+| Build     | Vite 8                                                                      |
+| State     | Pinia (`useCronLensStore`)                                                  |
+| Routing   | Vue Router 5 (single route `/`)                                             |
+| Styling   | Scoped `<style>` blocks + CSS custom properties. No Tailwind, no CSS-in-JS. |
+| Tests     | None yet — add Vitest if needed                                             |
 
 ---
 
@@ -65,11 +65,11 @@ yarn lint          # oxlint + eslint
 
 The app expects two endpoints from Django. Full contract is in `API_CONTRACT.md`.
 
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/api/schedule/tasks/` | All periodic tasks with schedule info |
-| GET/POST | `/api/schedule/groups/` | Custom display groups |
-| PUT/DELETE | `/api/schedule/groups/:id/` | Update / delete a group |
+| Method     | Endpoint                    | Description                                  |
+|------------|-----------------------------|----------------------------------------------|
+| GET        | `/api/schedule/events/`     | All periodic events/tasks with schedule info |
+| GET/POST   | `/api/schedule/groups/`     | Custom display groups                        |
+| PUT/DELETE | `/api/schedule/groups/:id/` | Update / delete a group                      |
 
 In development the Vite proxy forwards `/api/*` to `http://localhost:8000`.
 If the API is unreachable, `useSchedule.ts` falls back to hardcoded demo data

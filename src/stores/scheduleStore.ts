@@ -106,7 +106,7 @@ export const useCronLensStore = defineStore("schedule", () => {
       const r = await fetch(`${API_BASE}/api/schedule/groups/`)
       if (!r.ok) throw new Error()
       const data = await r.json()
-      groups.value = data.groups.length ? data.groups : DEFAULT_GROUPS
+      groups.value = data.groups
       persistLocal()
     } catch {
       if (!hadLocal) persistLocal()

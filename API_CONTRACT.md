@@ -8,13 +8,13 @@ are stored or expressed — it only renders what the API returns.
 
 ## Design principles
 
-| Concern | Who owns it |
-|---|---|
-| Schedule expansion (cron → fire times) | **Backend** |
-| Timezone conversion | **Frontend** (UTC/local toggle) |
-| Human-readable schedule description | **Backend** |
-| Which attributes are filterable | **Backend** |
-| Group definitions | **Shared** (backend persists, frontend caches) |
+| Concern                                | Who owns it                                    |
+|----------------------------------------|------------------------------------------------|
+| Schedule expansion (cron → fire times) | **Backend**                                    |
+| Timezone conversion                    | **Frontend** (UTC/local toggle)                |
+| Human-readable schedule description    | **Backend**                                    |
+| Which attributes are filterable        | **Backend**                                    |
+| Group definitions                      | **Shared** (backend persists, frontend caches) |
 
 ---
 
@@ -34,7 +34,7 @@ Returns all scheduled events.
       "enabled": true,
       "recurrence": "recurring",
       "fires_utc": [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55,
-                    60, 65, 70, ...],
+                    60, 65, 70],
       "fires_on_days": null,
       "last_run_at": "2026-05-05T14:00:00Z",
       "total_run_count": 1200,
@@ -85,28 +85,28 @@ Returns all scheduled events.
 
 ### Field reference
 
-| Field | Type | Description                                                                                                                       |
-|---|---|-----------------------------------------------------------------------------------------------------------------------------------|
-| `id` | string \| number | Opaque unique identifier                                                                                                          |
-| `name` | string | Human display name                                                                                                                |
-| `kind` | string | Logical category used for group matching. <br> _For beat: task function name. For other backends: any stable string._             |
-| `enabled` | boolean | Whether the event is currently active                                                                                             |
-| `recurrence` | `"recurring"` \| `"one_off"` \| `"clocked"` | `recurring` = repeating schedule. <br> `one_off` = ran once, finished. <br>`clocked` = scheduled for a specific future/past time. |
-| `fires_utc` | `number[]` | Sorted, deduplicated **minute-of-day** values (0–1439) for a 24h window. <br> _Empty for `one_off` and `clocked`._                |
-| `fires_on_days` | `number[] \| null` | Which days-of-week fire: 0=Sun…6=Sat. `null` = every day. `null` when `fires_utc` is empty.                                       |
-| `last_run_at` | string \| null | ISO 8601 UTC timestamp of last execution, or `null`                                                                               |
-| `total_run_count` | number | Cumulative run count                                                                                                              |
-| `schedule_display` | string | Human-readable description. Backend controls wording. e.g. `"every 5 minutes"`, `"daily at 03:00"`, `"Mon/Wed/Fri at 08:30"`      |
-| `attributes` | `EventAttribute[]` | Flat list of key-value metadata. Backend decides what to expose.                                                                  |
+| Field              | Type                                        | Description                                                                                                                       |
+|--------------------|---------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `id`               | string \| number                            | Opaque unique identifier                                                                                                          |
+| `name`             | string                                      | Human display name                                                                                                                |
+| `kind`             | string                                      | Logical category used for group matching. <br> _For beat: task function name. For other backends: any stable string._             |
+| `enabled`          | boolean                                     | Whether the event is currently active                                                                                             |
+| `recurrence`       | `"recurring"` \| `"one_off"` \| `"clocked"` | `recurring` = repeating schedule. <br> `one_off` = ran once, finished. <br>`clocked` = scheduled for a specific future/past time. |
+| `fires_utc`        | `number[]`                                  | Sorted, deduplicated **minute-of-day** values (0–1439) for a 24h window. <br> _Empty for `one_off` and `clocked`._                |
+| `fires_on_days`    | `number[] \| null`                          | Which days-of-week fire: 0=Sun…6=Sat. `null` = every day. `null` when `fires_utc` is empty.                                       |
+| `last_run_at`      | string \| null                              | ISO 8601 UTC timestamp of last execution, or `null`                                                                               |
+| `total_run_count`  | number                                      | Cumulative run count                                                                                                              |
+| `schedule_display` | string                                      | Human-readable description. Backend controls wording. e.g. `"every 5 minutes"`, `"daily at 03:00"`, `"Mon/Wed/Fri at 08:30"`      |
+| `attributes`       | `EventAttribute[]`                          | Flat list of key-value metadata. Backend decides what to expose.                                                                  |
 
 ### EventAttribute
 
-| Field | Type | Description                                                              |
-|---|---|--------------------------------------------------------------------------|
-| `key` | string | Attribute name, e.g. `"image_id"`, `"logo"`                              |
-| `value` | string | Always a string. Backend serialises non-strings.                         |
+| Field        | Type    | Description                                                              |
+|--------------|---------|--------------------------------------------------------------------------|
+| `key`        | string  | Attribute name, e.g. `"image_id"`, `"logo"`                              |
+| `value`      | string  | Always a string. Backend serialises non-strings.                         |
 | `filterable` | boolean | If `true`, appears in the filter dropdown. Use for IDs and foreign keys. |
-| `label` | string? | Optional display label; falls back to `key` if absent.                   |
+| `label`      | string? | Optional display label; falls back to `key` if absent.                   |
 
 ### `fires_utc` — how to compute it
 
