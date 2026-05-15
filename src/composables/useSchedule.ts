@@ -331,11 +331,15 @@ export function useSchedule() {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  async function fetchEvents() {
+  async function fetchEvents(dateFrom?: string, dateTo?: string) {
     loading.value = true
     error.value = null
     try {
-      const r = await fetch(`${API_BASE}/api/schedule/events/`)
+      const params = new URLSearchParams()
+      if (dateFrom) params.set("date_from", dateFrom)
+      if (dateTo) params.set("date_to", dateTo)
+      const qs = params.size ? `?${params.toString()}` : ""
+      const r = await fetch(`${API_BASE}/api/schedule/events/${qs}`)
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
       const data = await r.json()
       events.value = data.events

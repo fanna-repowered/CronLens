@@ -36,8 +36,15 @@
           <div class="group-pills">
             <button
               class="pill"
-              :class="{ active: store.activeGroupIds.size === 0 }"
-              @click="store.activeGroupIds.clear()"
+              :class="{
+                active:
+                  store.activeGroupIds.size === 0 &&
+                  store.excludedGroupIds.size === 0,
+              }"
+              @click="
+                store.activeGroupIds.clear()
+                store.excludedGroupIds.clear()
+              "
             >
               All
             </button>
@@ -45,13 +52,24 @@
               v-for="g in store.groups"
               :key="g.id"
               class="pill"
-              :class="{ active: store.activeGroupIds.has(g.id) }"
+              :class="{
+                active: store.activeGroupIds.has(g.id),
+                excluded: store.excludedGroupIds.has(g.id),
+              }"
               :style="
                 store.activeGroupIds.has(g.id)
                   ? { background: g.color, borderColor: g.color, color: '#fff' }
-                  : { borderColor: g.color + '99', color: g.color }
+                  : store.excludedGroupIds.has(g.id)
+                    ? { borderColor: g.color, color: g.color }
+                    : { borderColor: g.color + '99', color: g.color }
               "
-              @click="store.toggleGroupId(g.id)"
+              :title="
+                store.excludedGroupIds.has(g.id)
+                  ? 'Excluded — ctrl+click to remove'
+                  : 'Click to include · ctrl+click to exclude'
+              "
+              @click.exact="store.toggleGroupId(g.id)"
+              @click.ctrl.prevent="store.toggleExcludeGroupId(g.id)"
             >
               {{ g.name }}
             </button>
@@ -80,7 +98,13 @@
               class="icon-btn sq"
               :class="{ spinning: loading }"
               title="Refresh"
-              @click="fetchEvents"
+              @click="
+                () =>
+                  fetchEvents(
+                    store.currentWeekRange.from,
+                    store.currentWeekRange.to,
+                  )
+              "
             >
               <svg
                 width="13"
@@ -128,6 +152,13 @@
               <span class="track" />
             </label>
             <span class="tz-lbl">local</span>
+          </div>
+          <div class="tz-toggle">
+            <label class="switch">
+              <input type="checkbox" v-model="store.includeDisabled" />
+              <span class="track" />
+            </label>
+            <span class="tz-lbl">include disabled</span>
           </div>
           <div>
             <div class="tier-config">
@@ -381,7 +412,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue"
+import { ref, computed, watch, onMounted } from "vue"
 import { useCronLensStore } from "@/stores/scheduleStore"
 import { useSchedule } from "@/composables/useSchedule"
 import TimelineView from "@/components/schedule/TimelineView.vue"
@@ -399,7 +430,12 @@ const infoStatusOpen = ref(true)
 
 const meta = ref<ResponseMeta | null>(null)
 
-const filtered = computed(() => store.filteredEvents(events.value))
+const filtered = computed(() => {
+  const base = store.includeDisabled
+    ? events.value
+    : events.value.filter((e) => e.enabled)
+  return store.filteredEvents(base)
+})
 
 const totalFires = computed(() =>
   filtered.value
@@ -433,8 +469,15 @@ const tzDisplay = computed(() => {
   return `local (UTC${sign}${h}:${m})`
 })
 
+watch(
+  () => store.currentWeekRange,
+  (range) => fetchEvents(range.from, range.to),
+  { deep: true },
+)
+
 onMounted(async () => {
-  await Promise.all([fetchEvents(), store.fetchGroups()])
+  const range = store.currentWeekRange
+  await Promise.all([fetchEvents(range.from, range.to), store.fetchGroups()])
 })
 </script>
 
@@ -610,6 +653,11 @@ onMounted(async () => {
 
 .pill.active {
   font-weight: 500;
+}
+
+.pill.excluded {
+  text-decoration: line-through;
+  opacity: 0.6;
 }
 
 .tier-config {

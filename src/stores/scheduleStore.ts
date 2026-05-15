@@ -192,17 +192,48 @@ export const useCronLensStore = defineStore("schedule", () => {
 
   const view = ref<ViewMode>("calendar")
   const useLocalTime = ref(true)
+  const includeDisabled = ref(false)
   const searchQuery = ref("")
   const activeGroupIds = ref<Set<string>>(new Set())
+  const excludedGroupIds = ref<Set<string>>(new Set())
   const attrFilterKey = ref<string | null>(null)
   const attrFilterVal = ref("")
   const timelineDayOffset = ref(0)
+  const weekOffset = ref(0)
+
+  const currentWeekRange = computed(() => {
+    const base = new Date()
+    if (view.value === "calendar") {
+      base.setDate(base.getDate() + weekOffset.value * 7)
+    } else {
+      base.setDate(base.getDate() + timelineDayOffset.value)
+    }
+    const mon = new Date(base)
+    mon.setDate(base.getDate() - ((base.getDay() + 6) % 7))
+    mon.setHours(0, 0, 0, 0)
+    const sun = new Date(mon)
+    sun.setDate(mon.getDate() + 6)
+    return {
+      from: mon.toLocaleDateString("sv"),
+      to: sun.toLocaleDateString("sv"),
+    }
+  })
 
   function toggleGroupId(id: string) {
+    excludedGroupIds.value.delete(id)
     if (activeGroupIds.value.has(id)) {
       activeGroupIds.value.delete(id)
     } else {
       activeGroupIds.value.add(id)
+    }
+  }
+
+  function toggleExcludeGroupId(id: string) {
+    activeGroupIds.value.delete(id)
+    if (excludedGroupIds.value.has(id)) {
+      excludedGroupIds.value.delete(id)
+    } else {
+      excludedGroupIds.value.add(id)
     }
   }
 
@@ -224,6 +255,8 @@ export const useCronLensStore = defineStore("schedule", () => {
       if (s.view) view.value = s.view
       if (typeof s.useLocalTime === "boolean")
         useLocalTime.value = s.useLocalTime
+      if (typeof s.includeDisabled === "boolean")
+        includeDisabled.value = s.includeDisabled
     } catch {
       /* ignore */
     }
@@ -240,6 +273,7 @@ export const useCronLensStore = defineStore("schedule", () => {
           zoomSnapUnit: zoomSnapUnit.value,
           view: view.value,
           useLocalTime: useLocalTime.value,
+          includeDisabled: includeDisabled.value,
         }),
       )
     } catch {
@@ -283,6 +317,7 @@ export const useCronLensStore = defineStore("schedule", () => {
       zoomSnapUnit,
       view,
       useLocalTime,
+      includeDisabled,
     ],
     persistSettings,
   )
@@ -317,6 +352,15 @@ export const useCronLensStore = defineStore("schedule", () => {
           .flatMap((g) => g.kinds),
       )
       list = list.filter((e) => selectedKinds.has(e.kind))
+    }
+
+    if (excludedGroupIds.value.size > 0) {
+      const excludedKinds = new Set(
+        groups.value
+          .filter((g) => excludedGroupIds.value.has(g.id))
+          .flatMap((g) => g.kinds),
+      )
+      list = list.filter((e) => !excludedKinds.has(e.kind))
     }
 
     if (attrFilterKey.value && attrFilterVal.value.trim()) {
@@ -355,12 +399,17 @@ export const useCronLensStore = defineStore("schedule", () => {
     // ui state
     view,
     useLocalTime,
+    includeDisabled,
     searchQuery,
     activeGroupIds,
+    excludedGroupIds,
     toggleGroupId,
+    toggleExcludeGroupId,
     attrFilterKey,
     attrFilterVal,
     timelineDayOffset,
+    weekOffset,
+    currentWeekRange,
     filteredEvents,
   }
 })

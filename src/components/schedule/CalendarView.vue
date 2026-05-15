@@ -4,7 +4,7 @@
       <button @click="shift(-1)">&#8592;</button>
       <span class="week-label">{{ weekLabel }}</span>
       <button @click="shift(1)">&#8594;</button>
-      <button class="today-btn" @click="weekOffset = 0">today</button>
+      <button class="today-btn" @click="store.weekOffset = 0">today</button>
     </div>
 
     <!-- Day header row -->
@@ -262,7 +262,6 @@ const props = defineProps<{
   useLocal: boolean
 }>()
 
-const weekOffset = ref(0)
 const hovered = ref<{ ev: ScheduledEvent; mouse: MouseEvent } | null>(null)
 const todayStr = new Date().toDateString()
 
@@ -285,7 +284,7 @@ function navigateToDay(date: Date) {
 
 const weekDays = computed<DayMeta[]>(() => {
   const base = new Date()
-  base.setDate(base.getDate() + weekOffset.value * 7)
+  base.setDate(base.getDate() + store.weekOffset * 7)
   const mon = new Date(base)
   mon.setDate(base.getDate() - ((base.getDay() + 6) % 7))
   return Array.from({ length: 7 }, (_, i) => {
@@ -309,7 +308,7 @@ const weekLabel = computed(() => {
 })
 
 function shift(n: number) {
-  weekOffset.value += n
+  store.weekOffset += n
 }
 
 const recurring = computed(() =>
