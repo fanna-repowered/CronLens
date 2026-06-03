@@ -49,16 +49,21 @@ export interface EventAttribute {
 
 // ── Groups ────────────────────────────────────────────────────────────────────
 //
-// Groups map event `kind` values to a display name + colour.
-// A single group can cover multiple kind values.
+// Groups map event `kind` values to a display name.
+// Color is a frontend-only concern — it is stored locally and never sent to the API.
 
-export interface ScheduleGroup {
-  id: string
+/** Shape returned by the API — no color. */
+export interface ScheduleGroupApiResponse {
+  id: string | number
   name: string
-  color: string // hex, e.g. "#378ADD"
-  kinds: string[] // list of `kind` values that belong to this group
-  // (for beat: task function names)
+  kinds: string[]
   description: string
+}
+
+/** Full UI group — adds color, which is managed locally. */
+export interface ScheduleGroup extends ScheduleGroupApiResponse {
+  id: string // always coerced to string in the store
+  color: string // hex, e.g. "#378ADD" — local only, not persisted to backend
 }
 
 // ── API response envelopes ────────────────────────────────────────────────────
@@ -78,7 +83,7 @@ export interface ResponseMeta {
 }
 
 export interface GroupsResponse {
-  groups: ScheduleGroup[]
+  groups: ScheduleGroupApiResponse[]
 }
 
 // ── UI types ──────────────────────────────────────────────────────────────────

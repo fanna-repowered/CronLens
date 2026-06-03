@@ -3,6 +3,7 @@ import { defineStore } from "pinia"
 import { ref, computed, watch } from "vue"
 import type {
   ScheduleGroup,
+  ScheduleGroupApiResponse,
   ScheduledEvent,
   FrequencyTier,
   ViewMode,
@@ -101,12 +102,20 @@ export const useCronLensStore = defineStore("schedule", () => {
 
   async function fetchGroups() {
     const hadLocal = loadLocal()
+    const localGroups = [...groups.value]
     if (!hadLocal) groups.value = DEFAULT_GROUPS
     try {
-      const r = await fetch(`${API_BASE}/api/schedule/groups/`)
+      const r = await fetch(`${API_BASE}/api/groups/`)
       if (!r.ok) throw new Error()
-      const data = await r.json()
-      groups.value = data.groups
+      const data: { groups: ScheduleGroupApiResponse[] } = await r.json()
+      // Color is frontend-only — merge API data with locally stored colors.
+      groups.value = data.groups.map((g) => ({
+        ...g,
+        id: String(g.id),
+        color:
+          localGroups.find((local) => local.id === String(g.id))?.color ??
+          "#888780",
+      }))
       persistLocal()
     } catch {
       if (!hadLocal) persistLocal()
@@ -114,23 +123,25 @@ export const useCronLensStore = defineStore("schedule", () => {
   }
 
   async function createGroup(payload: Omit<ScheduleGroup, "id">) {
+    const { color, ...apiPayload } = payload
     const optimistic: ScheduleGroup = { ...payload, id: `local-${Date.now()}` }
     groups.value.push(optimistic)
     persistLocal()
     try {
       syncing.value = true
-      const r = await fetch(`${API_BASE}/api/schedule/groups/`, {
+      const r = await fetch(`${API_BASE}/api/groups/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-CSRFToken": getCsrf(),
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(apiPayload),
       })
       if (!r.ok) throw new Error()
-      const created: ScheduleGroup = await r.json()
+      const created: ScheduleGroupApiResponse = await r.json()
       const idx = groups.value.findIndex((g) => g.id === optimistic.id)
-      if (idx !== -1) groups.value[idx] = created
+      if (idx !== -1)
+        groups.value[idx] = { ...created, id: String(created.id), color }
       persistLocal()
     } catch {
       /* keep optimistic */
@@ -144,15 +155,18 @@ export const useCronLensStore = defineStore("schedule", () => {
     if (idx === -1) return
     groups.value[idx] = { ...groups.value[idx]!, ...payload }
     persistLocal()
+    // Color is local-only — strip before sending to API.
+    const { color: _color, ...apiPayload } = payload
+    if (Object.keys(apiPayload).length === 0) return
     try {
       syncing.value = true
-      await fetch(`${API_BASE}/api/schedule/groups/${id}/`, {
+      await fetch(`${API_BASE}/api/groups/${id}/`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           "X-CSRFToken": getCsrf(),
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(apiPayload),
       })
     } catch {
       /* optimistic */
@@ -165,7 +179,7 @@ export const useCronLensStore = defineStore("schedule", () => {
     groups.value = groups.value.filter((g) => g.id !== id)
     persistLocal()
     try {
-      await fetch(`${API_BASE}/api/schedule/groups/${id}/`, {
+      await fetch(`${API_BASE}/api/groups/${id}/`, {
         method: "DELETE",
         headers: { "X-CSRFToken": getCsrf() },
       })

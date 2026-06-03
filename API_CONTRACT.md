@@ -18,7 +18,7 @@ are stored or expressed — it only renders what the API returns.
 
 ---
 
-## 1. `GET /api/schedule/events/`
+## 1. `GET /api/events/`
 
 Returns all scheduled events.
 
@@ -154,9 +154,12 @@ def fires_on_days(crontab) -> list[int] | None:
 
 ---
 
-## 2. Groups CRUD `/api/schedule/groups/`
+## 2. Groups CRUD `/api/groups/`
 
-### `GET /api/schedule/groups/`
+Groups are backend-persisted for cross-session sharing of `name`, `kinds`, and `description`.
+**Color is frontend-only** — it is stored in `localStorage` and never sent to or returned by the API.
+
+### `GET /api/groups/`
 
 ```json
 {
@@ -164,7 +167,6 @@ def fires_on_days(crontab) -> list[int] | None:
     {
       "id": "1",
       "name": "Images",
-      "color": "#378ADD",
       "kinds": ["analyze_images", "increase_image_quality", "mark_images_as_logo"],
       "description": "All tasks related to image processing"
     }
@@ -172,16 +174,16 @@ def fires_on_days(crontab) -> list[int] | None:
 }
 ```
 
-### `POST /api/schedule/groups/`
+### `POST /api/groups/`
 
-Body: `{ "name": "...", "color": "#hex", "kinds": [...], "description": "..." }`
+Body: `{ "name": "...", "kinds": [...], "description": "..." }`
 Returns: created group with server-assigned `id`.
 
-### `PUT /api/schedule/groups/{id}/`
+### `PUT /api/groups/{id}/`
 
-Body: same shape. Returns updated group.
+Body: same shape (no `color`). Returns updated group.
 
-### `DELETE /api/schedule/groups/{id}/`
+### `DELETE /api/groups/{id}/`
 
 Returns 204.
 
@@ -190,7 +192,6 @@ Returns 204.
 ```python
 class ScheduleGroup(models.Model):
     name        = models.CharField(max_length=100)
-    color       = models.CharField(max_length=7)    # hex e.g. "#378ADD"
     kinds       = models.JSONField(default=list)    # list of kind strings
     description = models.TextField(blank=True)
     created_at  = models.DateTimeField(auto_now_add=True)

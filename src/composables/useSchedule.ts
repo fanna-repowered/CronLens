@@ -339,7 +339,7 @@ export function useSchedule() {
       if (dateFrom) params.set("date_from", dateFrom)
       if (dateTo) params.set("date_to", dateTo)
       const qs = params.size ? `?${params.toString()}` : ""
-      const r = await fetch(`${API_BASE}/api/schedule/events/${qs}`)
+      const r = await fetch(`${API_BASE}/api/events/${qs}`)
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
       const data = await r.json()
       events.value = data.events
