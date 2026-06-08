@@ -8,13 +8,13 @@ are stored or expressed — it only renders what the API returns.
 
 ## Design principles
 
-| Concern                                | Who owns it                                    |
-|----------------------------------------|------------------------------------------------|
-| Schedule expansion (cron → fire times) | **Backend**                                    |
-| Timezone conversion                    | **Frontend** (UTC/local toggle)                |
-| Human-readable schedule description    | **Backend**                                    |
-| Which attributes are filterable        | **Backend**                                    |
-| Group definitions                      | **Shared** (backend persists, frontend caches) |
+| Concern                                | Who owns it                                                              |
+|----------------------------------------|--------------------------------------------------------------------------|
+| Schedule expansion (cron → fire times) | **Backend**                                                              |
+| Timezone conversion                    | **Frontend** (UTC/local toggle)                                          |
+| Human-readable schedule description    | **Backend**                                                              |
+| Which attributes are filterable        | **Backend**                                                              |
+| Group definitions                      | **Frontend** (localStorage); optionally **Shared** via the groups API    |
 
 ---
 
@@ -154,7 +154,9 @@ def fires_on_days(crontab) -> list[int] | None:
 
 ---
 
-## 2. Groups CRUD `/api/groups/`
+## 2. Groups CRUD `/api/groups/` _(optional)_
+
+> **Without this API groups are stored only in `localStorage`.** They work and persist between sessions on the same browser, but will not sync across devices or users. Implement this API if you need cross-device persistence.
 
 Groups are backend-persisted for cross-session sharing of `name`, `kinds`, and `description`.
 **Color is frontend-only** — it is stored in `localStorage` and never sent to or returned by the API.

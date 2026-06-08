@@ -24,20 +24,20 @@ The API contract is backend-agnostic: any scheduler (django-celery-beat, APSched
 - :clock1: **24-hour timeline** — every task plotted at its fire times across a horizontal day view
 - :calendar: **Weekly calendar** — Mon–Sun grid with per-day task breakdown
 - :signal_strength: **Frequency tiers** — high-frequency tasks render as a solid band; lower-frequency tasks show individual tick marks
-- :art: **Task groups** — assign tasks to named colour-coded groups by kind; persisted locally and synced to the API
+- :art: **Task groups** — assign tasks to named colour-coded groups by kind; always persisted in localStorage, optionally synced to a backend API
 - :mag: **Search and filter** — live search by name, kind or schedule; filter by group or any filterable attribute from the API
 - :globe_with_meridians: **UTC / local time toggle** — switch between UTC and browser-local time in one click
 - :floppy_disk: **Demo mode** — falls back to built-in sample data when the API is unreachable (development only)
 
 ## :electric_plug: Connecting your backend
 
-CronLens expects two endpoints. The full OpenAPI spec is in [`openapi.yaml`](openapi.yaml) and the narrative spec is in [`API_CONTRACT.md`](API_CONTRACT.md).
+CronLens requires one endpoint and optionally supports a second. The full OpenAPI spec is in [`openapi.yaml`](openapi.yaml) and the narrative spec is in [`API_CONTRACT.md`](API_CONTRACT.md).
 
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/api/schedule/events/` | All scheduled events with fire times and metadata |
-| `GET` / `POST` | `/api/schedule/groups/` | Custom display groups |
-| `PUT` / `DELETE` | `/api/schedule/groups/{id}/` | Update or delete a group |
+| `GET` / `POST` | `/api/schedule/groups/` | Custom display groups _(optional — see below)_ |
+| `PUT` / `DELETE` | `/api/schedule/groups/{id}/` | Update or delete a group _(optional)_ |
 
 ### :gear: How the events endpoint works
 
@@ -94,12 +94,9 @@ Any backend works. The only requirement is that it serves the JSON shape above a
 
 Groups map event `kind` values to a display name and colour. They are managed through the group editor in the toolbar.
 
-Groups are stored in two places:
+Groups are stored in **localStorage** and are always available without any backend support. Changes take effect immediately and survive page reloads.
 
-1. :zap: **localStorage** — written on every change, shown immediately on load
-2. :cloud: **API** — fetched after the localStorage snapshot is displayed; the response overwrites localStorage
-
-All group mutations are optimistic: the UI updates immediately and the API call happens in the background.
+> **Without the optional groups API** groups do not sync across browsers or users — each session starts from its own localStorage snapshot (or the built-in defaults on first use). Implement `/api/groups/` (see [API_CONTRACT.md](API_CONTRACT.md#2-groups-crud-apigroups-optional)) if you need cross-device persistence.
 
 ## :hammer_and_wrench: Local development
 
